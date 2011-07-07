@@ -165,28 +165,46 @@ val is_perm_def = Define`
       (!p1 p2. (p1 == p2) ==> (f p1 = f p2))
 `;
 
-val _ = type_abbrev ("pm", ``:(string # string) list -> 'a -> 'a``)
+val existence = prove(
+``?p. is_perm p``,
+  Q.EXISTS_TAC `K I` THEN
+  SRW_TAC [][is_perm_def]);
+
+val perm_TY_DEF = new_type_definition ("perm", existence);
+val perm_bijections = define_new_type_bijections
+  {name="perm_bijections",tyax=perm_TY_DEF,ABS="perm_ABS",REP="apply_perm"};
+val apply_perm_onto = prove_rep_fn_onto perm_bijections;
+val perm_ABS_onto = prove_abs_fn_onto perm_bijections;
+
+val is_perm_apply_perm = store_thm(
+"is_perm_apply_perm",
+``!pm. is_perm (apply_perm pm)``,
+METIS_TAC [apply_perm_onto]);
 
 val is_perm_nil = store_thm(
   "is_perm_nil",
-  ``is_perm pm ==> (pm [] x = x)``,
+  ``!pm x. (apply_perm pm [] x = x)``,
+  MP_TAC is_perm_apply_perm THEN
   SRW_TAC [][is_perm_def])
 
 val is_perm_decompose = store_thm(
   "is_perm_decompose",
-  ``is_perm pm ==> (!a. pm (x ++ y) a = pm x (pm y a))``,
+  ``!pm x y a. apply_perm pm (x ++ y) a = apply_perm pm x (apply_perm pm y a)``,
+  MP_TAC is_perm_apply_perm THEN
   SRW_TAC [][is_perm_def]);
 
 val is_perm_dups = store_thm(
   "is_perm_dups",
-  ``is_perm f ==> !t a. f (h::h::t) a = f t a``,
+  ``!f h t a. apply_perm f (h::h::t) a = apply_perm f t a``,
+  MP_TAC is_perm_apply_perm THEN
   SRW_TAC [][is_perm_def] THEN
   Q_TAC SUFF_TAC `h::h::t == t` THEN1 METIS_TAC [is_perm_def] THEN
   SRW_TAC [][permof_dups]);
 
 val is_perm_id = store_thm(
   "is_perm_id",
-  ``is_perm f ==> !x a t. f ((x,x)::t) a = f t a``,
+  ``!f x a t. apply_perm f ((x,x)::t) a = apply_perm f t a``,
+  MP_TAC is_perm_apply_perm THEN
   SRW_TAC [][] THEN
   Q_TAC SUFF_TAC `((x,x)::t) == t`
         THEN1 METIS_TAC [is_perm_def] THEN
@@ -194,8 +212,9 @@ val is_perm_id = store_thm(
 
 val is_perm_inverse = store_thm(
   "is_perm_inverse",
-  ``is_perm f ==> (f p (f (REVERSE p) a) = a) /\
-                  (f (REVERSE p) (f p a) = a)``,
+  ``(apply_perm f p (apply_perm f (REVERSE p) a) = a) /\
+    (apply_perm f (REVERSE p) (apply_perm f p a) = a)``,
+  MP_TAC is_perm_apply_perm THEN
   METIS_TAC [is_perm_def, permof_inverse])
 
 val is_perm_sing_inv = store_thm(
