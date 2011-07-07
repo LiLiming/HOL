@@ -158,98 +158,106 @@ val app_permeq_right_cancel = store_thm(
     Define what it is to be a permutation action on a type
    ---------------------------------------------------------------------- *)
 
-val is_perm_def = Define`
-  is_perm (f:(string # string) list -> 'a -> 'a) =
+val _ = type_abbrev("pm",``:(string # string) list``);
+
+val _ = add_rule {fixity = Suffix 2100,
+                  term_name = "⁻¹",
+                  block_style = (AroundEachPhrase, (PP.CONSISTENT, 0)),
+                  paren_style = OnlyIfNecessary,
+                  pp_elements = [TOK "⁻¹"]}
+val _ = overload_on ("⁻¹", ``REVERSE : pm -> pm``)
+val _ = TeX_notation {hol="⁻¹", TeX= ("\\ensuremath{\\sp{-1}}", 1)}
+
+val is_pmact_def = Define`
+  is_pmact (f:pm -> 'a -> 'a) =
       (!x. f [] x = x) /\
       (!p1 p2 x. f (p1 ++ p2) x = f p1 (f p2 x)) /\
-      (!p1 p2. (p1 == p2) ==> (f p1 = f p2))
-`;
+      (!p1 p2. (p1 == p2) ==> (f p1 = f p2))`;
 
 val existence = prove(
-``?p. is_perm p``,
+``?p. is_pmact p``,
   Q.EXISTS_TAC `K I` THEN
-  SRW_TAC [][is_perm_def]);
+  SRW_TAC [][is_pmact_def]);
 
-val perm_TY_DEF = new_type_definition ("perm", existence);
-val perm_bijections = define_new_type_bijections
-  {name="perm_bijections",tyax=perm_TY_DEF,ABS="perm_ABS",REP="apply_perm"};
-val apply_perm_onto = prove_rep_fn_onto perm_bijections;
-val perm_ABS_onto = prove_abs_fn_onto perm_bijections;
+val pmact_TY_DEF = new_type_definition ("pmact", existence);
+val pmact_bijections = define_new_type_bijections
+  {name="pmact_bijections",tyax=pmact_TY_DEF,ABS="mk_pmact",REP="pmact"};
+val pmact_onto = prove_rep_fn_onto pmact_bijections;
 
-val is_perm_apply_perm = store_thm(
-"is_perm_apply_perm",
-``!pm. is_perm (apply_perm pm)``,
-METIS_TAC [apply_perm_onto]);
+val is_pmact_pmact = store_thm(
+"is_pmact_pmact",
+``!pm. is_pmact (pmact pm)``,
+METIS_TAC [pmact_onto]);
 
-val is_perm_nil = Store_thm(
-  "is_perm_nil",
-  ``!pm x. (apply_perm pm [] x = x)``,
-  MP_TAC is_perm_apply_perm THEN
-  SRW_TAC [][is_perm_def])
+val pmact_nil = Store_thm(
+  "pmact_nil",
+  ``!pm x. (pmact pm [] x = x)``,
+  MP_TAC is_pmact_pmact THEN
+  SRW_TAC [][is_pmact_def])
 
-val is_perm_decompose = store_thm(
-  "is_perm_decompose",
-  ``!pm x y a. apply_perm pm (x ++ y) a = apply_perm pm x (apply_perm pm y a)``,
-  MP_TAC is_perm_apply_perm THEN
-  SRW_TAC [][is_perm_def]);
+val pmact_decompose = store_thm(
+  "pmact_decompose",
+  ``!pm x y a. pmact pm (x ++ y) a = pmact pm x (pmact pm y a)``,
+  MP_TAC is_pmact_pmact THEN
+  SRW_TAC [][is_pmact_def]);
 
-val is_perm_dups = Store_thm(
-  "is_perm_dups",
-  ``!f h t a. apply_perm f (h::h::t) a = apply_perm f t a``,
-  MP_TAC is_perm_apply_perm THEN
-  SRW_TAC [][is_perm_def] THEN
-  Q_TAC SUFF_TAC `h::h::t == t` THEN1 METIS_TAC [is_perm_def] THEN
+val pmact_dups = Store_thm(
+  "pmact_dups",
+  ``!f h t a. pmact f (h::h::t) a = pmact f t a``,
+  MP_TAC is_pmact_pmact THEN
+  SRW_TAC [][is_pmact_def] THEN
+  Q_TAC SUFF_TAC `h::h::t == t` THEN1 METIS_TAC [is_pmact_def] THEN
   SRW_TAC [][permof_dups]);
 
-val is_perm_id = Store_thm(
-  "is_perm_id",
-  ``!f x a t. apply_perm f ((x,x)::t) a = apply_perm f t a``,
-  MP_TAC is_perm_apply_perm THEN
+val pmact_id = Store_thm(
+  "pmact_id",
+  ``!f x a t. pmact f ((x,x)::t) a = pmact f t a``,
+  MP_TAC is_pmact_pmact THEN
   SRW_TAC [][] THEN
   Q_TAC SUFF_TAC `((x,x)::t) == t`
-        THEN1 METIS_TAC [is_perm_def] THEN
+        THEN1 METIS_TAC [is_pmact_def] THEN
   SRW_TAC [][permof_idfront]);
 
-val is_perm_inverse = Store_thm(
-  "is_perm_inverse",
-  ``(apply_perm f p (apply_perm f (REVERSE p) a) = a) /\
-    (apply_perm f (REVERSE p) (apply_perm f p a) = a)``,
-  MP_TAC is_perm_apply_perm THEN
-  METIS_TAC [is_perm_def, permof_inverse])
+val pmact_inverse = Store_thm(
+  "pmact_inverse",
+  ``(pmact f p (pmact f p⁻¹ a) = a) /\
+    (pmact f p⁻¹ (pmact f p a) = a)``,
+  MP_TAC is_pmact_pmact THEN
+  METIS_TAC [is_pmact_def, permof_inverse])
 
-val is_perm_sing_inv = Store_thm(
-  "is_perm_sing_inv",
-  ``apply_perm pm [h] (apply_perm pm [h] x) = x``,
-  METIS_TAC [listTheory.REVERSE_DEF, listTheory.APPEND, is_perm_inverse]);
+val pmact_sing_inv = Store_thm(
+  "pmact_sing_inv",
+  ``pmact pm [h] (pmact pm [h] x) = x``,
+  METIS_TAC [listTheory.REVERSE_DEF, listTheory.APPEND, pmact_inverse]);
 
-val is_perm_eql = store_thm(
-  "is_perm_eql",
-  ``(apply_perm pm p x = y) = (x = apply_perm pm (REVERSE p) y)``,
-  MP_TAC is_perm_apply_perm THEN
-  SRW_TAC [][is_perm_def, EQ_IMP_THM] THEN
-  SRW_TAC [][is_perm_decompose]);
+val pmact_eql = store_thm(
+  "pmact_eql",
+  ``(pmact pm p x = y) = (x = pmact pm p⁻¹ y)``,
+  MP_TAC is_pmact_pmact THEN
+  SRW_TAC [][is_pmact_def, EQ_IMP_THM] THEN
+  SRW_TAC [][pmact_decompose]);
 
-val is_perm_injective = store_thm(
-  "is_perm_injective",
-  ``(apply_perm pm p x = apply_perm pm p y) = (x = y)``,
-  METIS_TAC [is_perm_inverse]);
+val pmact_injective = store_thm(
+  "pmact_injective",
+  ``(pmact pm p x = pmact pm p y) = (x = y)``,
+  METIS_TAC [pmact_inverse]);
 
 val permeq_flip_args = store_thm(
   "permeq_flip_args",
   ``(x,y)::t == (y,x)::t``,
   SRW_TAC [][permeq_def, FUN_EQ_THM]);
 
-val is_perm_flip_args = store_thm(
-  "is_perm_flip_args",
-  ``apply_perm pm ((x,y)::t) a = apply_perm pm ((y,x)::t) a``,
-  METIS_TAC [is_perm_apply_perm, is_perm_def, permeq_flip_args]);
+val pmact_flip_args = store_thm(
+  "pmact_flip_args",
+  ``pmact pm ((x,y)::t) a = pmact pm ((y,x)::t) a``,
+  METIS_TAC [is_pmact_pmact, is_pmact_def, permeq_flip_args]);
 
-val is_perm_sing_to_back = store_thm(
-  "is_perm_sing_to_back",
-  ``apply_perm pm [(lswapstr pi a, lswapstr pi b)] (apply_perm pm pi v) = apply_perm pm pi (apply_perm pm [(a,b)] v)``,
-  SRW_TAC [][GSYM is_perm_decompose] THEN
+val pmact_sing_to_back = store_thm(
+  "pmact_perm_sing_to_back",
+  ``pmact pm [(lswapstr pi a, lswapstr pi b)] (pmact pm pi v) = pmact pm pi (pmact pm [(a,b)] v)``,
+  SRW_TAC [][GSYM pmact_decompose] THEN
   Q_TAC SUFF_TAC `(lswapstr pi a,lswapstr pi b)::pi == pi ++ [(a,b)]`
-        THEN1 METIS_TAC [is_perm_def,is_perm_apply_perm] THEN
+        THEN1 METIS_TAC [is_pmact_def,is_pmact_pmact] THEN
   METIS_TAC [permeq_swap_ends, permeq_sym]);
 
 (* ----------------------------------------------------------------------
@@ -258,52 +266,47 @@ val is_perm_sing_to_back = store_thm(
   ----------------------------------------------------------------------  *)
 
 (* two simple permutation actions: strings, and "everything else" *)
-val perm_of_is_perm = Store_thm(
-  "perm_of_is_perm",
-  ``is_perm perm_of``,
-  SRW_TAC [][is_perm_def, lswapstr_APPEND, permeq_def]);
+val perm_of_is_pmact = Store_thm(
+  "perm_of_is_pmact",
+  ``is_pmact perm_of``,
+  SRW_TAC [][is_pmact_def, lswapstr_APPEND, permeq_def]);
 
-val discrete_is_perm = Store_thm(
-  "discrete_is_perm",
-  ``is_perm (K I)``,
-  SRW_TAC [][is_perm_def]);
+val discrete_is_pmact = Store_thm(
+  "discrete_is_pmact",
+  ``is_pmact (K I)``,
+  SRW_TAC [][is_pmact_def]);
+
+val _ = overload_on("stringpm",``mk_pmact perm_of``);
+val _ = overload_on("discretepm",``mk_pmact (K I)``);
 
 (* functions *)
-val fun_perm_def = Define`
-  fun_perm (dpm:'a perm) (rpm: 'b perm) = perm_ABS (λp f x. apply_perm rpm p (f (apply_perm dpm (REVERSE p) x)))
-`;
+val fnpm = ``pmact (rpm: β pmact) p (f (pmact (dpm: α pmact)  p⁻¹ x))``;
 
-val _ = overload_on ("fnpm", ``\dpm rpm. apply_perm (fun_perm dpm rpm)``);
+val fun_pmact_def = Define`fun_pmact dpm rpm = mk_pmact (λp f x. ^fnpm)`;
+
+val _ = overload_on ("fnpm", ``λdpm rpm. pmact (fun_pmact dpm rpm)``);
 
 val fnpm_def = store_thm(
 "fnpm_def",
-``fnpm dpm rpm p f x = apply_perm rpm p (f (apply_perm dpm (REVERSE p) x))``,
-srw_tac [][fun_perm_def] >>
-qmatch_abbrev_tac `apply_perm (perm_ABS r) p f x = z` >>
-qsuff_tac `apply_perm (perm_ABS r) = r` >- metis_tac [FUN_EQ_THM] >>
-srw_tac [][GSYM perm_bijections] >>
+``fnpm dpm rpm p f x = ^fnpm``,
+srw_tac [][fun_pmact_def] >>
+qmatch_abbrev_tac `pmact (mk_pmact r) p f x = z` >>
+qsuff_tac `pmact (mk_pmact r) = r` >- metis_tac [FUN_EQ_THM] >>
+srw_tac [][GSYM pmact_bijections] >>
 unabbrev_all_tac >>
-SRW_TAC [][is_perm_def, FUN_EQ_THM, listTheory.REVERSE_APPEND, is_perm_decompose] THEN
-METIS_TAC [permof_REVERSE_monotone,is_perm_def,is_perm_apply_perm]);
+SRW_TAC [][is_pmact_def, FUN_EQ_THM, listTheory.REVERSE_APPEND, pmact_decompose] THEN
+METIS_TAC [permof_REVERSE_monotone,is_pmact_def,is_pmact_pmact]);
 
 (* sets *)
-val _ = overload_on ("set_perm", ``λpm. fun_perm pm (perm_ABS (K I)) : (α -> bool) perm``)
-val _ = overload_on ("setpm", ``λpm. apply_perm (set_perm pm)``);
-
-val _ = add_rule {fixity = Suffix 2100,
-                  term_name = "⁻¹",
-                  block_style = (AroundEachPhrase, (PP.CONSISTENT, 0)),
-                  paren_style = OnlyIfNecessary,
-                  pp_elements = [TOK "⁻¹"]}
-val _ = overload_on ("⁻¹", ``REVERSE : (string # string) list -> (string # string) list``)
-val _ = TeX_notation {hol="⁻¹", TeX= ("\\ensuremath{\\sp{-1}}", 1)}
+val _ = overload_on ("set_pmact", ``λpm. fun_pmact pm discretepm : (α -> bool) pmact``)
+val _ = overload_on ("setpm", ``λpm. pmact (set_pmact pm)``);
 
 val perm_IN = Store_thm(
   "perm_IN",
-  ``(x IN (setpm pm π s) = apply_perm pm π⁻¹ x IN s)``,
+  ``(x IN (setpm pm π s) = pmact pm π⁻¹ x IN s)``,
   SRW_TAC [][fnpm_def, SPECIFICATION] THEN
   let open combinTheory in
-    METIS_TAC [perm_bijections, K_THM, I_THM, discrete_is_perm]
+    METIS_TAC [pmact_bijections, K_THM, I_THM, discrete_is_pmact]
   end);
 
 val perm_UNIV = Store_thm(
@@ -320,8 +323,8 @@ val perm_EMPTY = Store_thm(
 
 val perm_INSERT = store_thm(
   "perm_INSERT",
-  ``setpm pm π (e INSERT s) = apply_perm pm π e INSERT setpm pm π s``,
-  SRW_TAC [][EXTENSION, perm_IN, is_perm_eql]);
+  ``setpm pm π (e INSERT s) = pmact pm π e INSERT setpm pm π s``,
+  SRW_TAC [][EXTENSION, perm_IN, pmact_eql]);
 
 val perm_UNION = store_thm(
   "perm_UNION",
@@ -335,8 +338,8 @@ val perm_DIFF = store_thm(
 
 val perm_DELETE = store_thm(
   "perm_DELETE",
-  ``setpm pm p (s DELETE e) = setpm pm p s DELETE apply_perm pm p e``,
-  SRW_TAC [][EXTENSION, perm_IN, is_perm_eql]);
+  ``setpm pm p (s DELETE e) = setpm pm p s DELETE pmact pm p e``,
+  SRW_TAC [][EXTENSION, perm_IN, pmact_eql]);
 
 val perm_FINITE = Store_thm(
   "perm_FINITE",
@@ -347,7 +350,7 @@ val perm_FINITE = Store_thm(
   CONJ_TAC THENL [
     HO_MATCH_MP_TAC FINITE_INDUCT THEN SRW_TAC [][perm_INSERT],
     HO_MATCH_MP_TAC FINITE_INDUCT THEN
-    SRW_TAC [][is_perm_eql, perm_INSERT]
+    SRW_TAC [][pmact_eql, perm_INSERT]
   ]);
 
 (* options *)
