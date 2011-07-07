@@ -280,26 +280,22 @@ val _ = overload_on("stringpm",``mk_pmact perm_of``);
 val _ = overload_on("discretepm",``mk_pmact (K I)``);
 
 (* functions *)
-val fnpm = ``pmact (rpm: β pmact) p (f (pmact (dpm: α pmact)  p⁻¹ x))``;
+val raw_fnpm_def = Define`
+  raw_fnpm (dpm: α pmact) (rpm: β pmact) p f x = pmact rpm p (f (pmact dpm  p⁻¹ x))
+`;
+val _ = export_rewrites["raw_fnpm_def"];
 
-val fun_pmact_def = Define`fun_pmact dpm rpm = mk_pmact (λp f x. ^fnpm)`;
-
-val _ = overload_on ("fnpm", ``λdpm rpm. pmact (fun_pmact dpm rpm)``);
+val _ = overload_on ("fnpm", ``λdpm rpm. pmact (mk_pmact (raw_fnpm dpm rpm))``);
 
 val fnpm_def = store_thm(
 "fnpm_def",
-``fnpm dpm rpm p f x = ^fnpm``,
-srw_tac [][fun_pmact_def] >>
-qmatch_abbrev_tac `pmact (mk_pmact r) p f x = z` >>
-qsuff_tac `pmact (mk_pmact r) = r` >- metis_tac [FUN_EQ_THM] >>
+``fnpm dpm rpm = raw_fnpm dpm rpm``,
 srw_tac [][GSYM pmact_bijections] >>
-unabbrev_all_tac >>
 SRW_TAC [][is_pmact_def, FUN_EQ_THM, listTheory.REVERSE_APPEND, pmact_decompose] THEN
 METIS_TAC [permof_REVERSE_monotone,is_pmact_def,is_pmact_pmact]);
 
 (* sets *)
-val _ = overload_on ("set_pmact", ``λpm. fun_pmact pm discretepm : (α -> bool) pmact``)
-val _ = overload_on ("setpm", ``λpm. pmact (set_pmact pm)``);
+val _ = overload_on ("setpm", ``λpm. pmact (mk_pmact (fnpm pm discretepm) : α set pmact)``);
 
 val perm_IN = Store_thm(
   "perm_IN",
@@ -354,22 +350,26 @@ val perm_FINITE = Store_thm(
   ]);
 
 (* options *)
-val optpm_def = Define`
-  (optpm pm pi NONE = NONE) /\
-  (optpm pm pi (SOME x) = SOME (pm pi x))
-`;
-val _ = export_rewrites ["optpm_def"]
 
-val optpm_is_perm = store_thm(
-  "optpm_is_perm",
-  ``is_perm pm ==> is_perm (optpm pm)``,
-  SRW_TAC [][is_perm_def] THENL [
-    Cases_on `x` THEN SRW_TAC [][optpm_def],
-    Cases_on `x` THEN SRW_TAC [][optpm_def],
-    FULL_SIMP_TAC (srw_ss()) [permeq_def, FUN_EQ_THM] THEN GEN_TAC THEN
-    Cases_on `x` THEN SRW_TAC [][optpm_def]
-  ]);
-val _ = export_rewrites ["optpm_is_perm"]
+val raw_optpm_def = Define`
+  (raw_optpm pm pi NONE = NONE) /\
+  (raw_optpm pm pi (SOME x) = SOME (pmact pm pi x))`;
+val _ = export_rewrites ["raw_optpm_def"];
+
+val _ = overload_on("optpm",``λpm. pmact (mk_pmact (raw_optpm pm))``);
+
+val optpm_def = store_thm(
+"optpm_def",
+``optpm pm = raw_optpm pm``,
+srw_tac [][GSYM pmact_bijections] >>
+srw_tac [][is_pmact_def] THENL [
+  Cases_on `x` THEN SRW_TAC [][],
+  Cases_on `x` THEN SRW_TAC [][pmact_decompose],
+  FULL_SIMP_TAC (srw_ss()) [permeq_def, FUN_EQ_THM] THEN GEN_TAC THEN
+  Cases_on `x` THEN SRW_TAC [][] THEN
+  METIS_TAC [is_pmact_def,is_pmact_pmact,permeq_def]
+]);
+val _ = export_rewrites ["optpm_def"]
 
 (* pairs *)
 val pairpm_def = Define`
