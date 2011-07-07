@@ -181,7 +181,7 @@ val is_perm_apply_perm = store_thm(
 ``!pm. is_perm (apply_perm pm)``,
 METIS_TAC [apply_perm_onto]);
 
-val is_perm_nil = store_thm(
+val is_perm_nil = Store_thm(
   "is_perm_nil",
   ``!pm x. (apply_perm pm [] x = x)``,
   MP_TAC is_perm_apply_perm THEN
@@ -193,7 +193,7 @@ val is_perm_decompose = store_thm(
   MP_TAC is_perm_apply_perm THEN
   SRW_TAC [][is_perm_def]);
 
-val is_perm_dups = store_thm(
+val is_perm_dups = Store_thm(
   "is_perm_dups",
   ``!f h t a. apply_perm f (h::h::t) a = apply_perm f t a``,
   MP_TAC is_perm_apply_perm THEN
@@ -201,7 +201,7 @@ val is_perm_dups = store_thm(
   Q_TAC SUFF_TAC `h::h::t == t` THEN1 METIS_TAC [is_perm_def] THEN
   SRW_TAC [][permof_dups]);
 
-val is_perm_id = store_thm(
+val is_perm_id = Store_thm(
   "is_perm_id",
   ``!f x a t. apply_perm f ((x,x)::t) a = apply_perm f t a``,
   MP_TAC is_perm_apply_perm THEN
@@ -210,26 +210,28 @@ val is_perm_id = store_thm(
         THEN1 METIS_TAC [is_perm_def] THEN
   SRW_TAC [][permof_idfront]);
 
-val is_perm_inverse = store_thm(
+val is_perm_inverse = Store_thm(
   "is_perm_inverse",
   ``(apply_perm f p (apply_perm f (REVERSE p) a) = a) /\
     (apply_perm f (REVERSE p) (apply_perm f p a) = a)``,
   MP_TAC is_perm_apply_perm THEN
   METIS_TAC [is_perm_def, permof_inverse])
 
-val is_perm_sing_inv = store_thm(
+val is_perm_sing_inv = Store_thm(
   "is_perm_sing_inv",
-  ``is_perm pm ==> (pm [h] (pm [h] x) = x)``,
+  ``apply_perm pm [h] (apply_perm pm [h] x) = x``,
   METIS_TAC [listTheory.REVERSE_DEF, listTheory.APPEND, is_perm_inverse]);
 
 val is_perm_eql = store_thm(
   "is_perm_eql",
-  ``is_perm pm ==> ((pm p x = y) = (x = pm (REVERSE p) y))``,
-  SRW_TAC [][is_perm_def, EQ_IMP_THM] THEN METIS_TAC [permof_inverse]);
+  ``(apply_perm pm p x = y) = (x = apply_perm pm (REVERSE p) y)``,
+  MP_TAC is_perm_apply_perm THEN
+  SRW_TAC [][is_perm_def, EQ_IMP_THM] THEN
+  SRW_TAC [][is_perm_decompose]);
 
 val is_perm_injective = store_thm(
   "is_perm_injective",
-  ``is_perm pm ==> ((pm p x = pm p y) = (x = y))``,
+  ``(apply_perm pm p x = apply_perm pm p y) = (x = y)``,
   METIS_TAC [is_perm_inverse]);
 
 val permeq_flip_args = store_thm(
@@ -239,16 +241,15 @@ val permeq_flip_args = store_thm(
 
 val is_perm_flip_args = store_thm(
   "is_perm_flip_args",
-  ``is_perm pm ==> (pm ((x,y)::t) a = pm ((y,x)::t) a)``,
-  METIS_TAC [is_perm_def, permeq_flip_args]);
+  ``apply_perm pm ((x,y)::t) a = apply_perm pm ((y,x)::t) a``,
+  METIS_TAC [is_perm_apply_perm, is_perm_def, permeq_flip_args]);
 
 val is_perm_sing_to_back = store_thm(
   "is_perm_sing_to_back",
-  ``is_perm pm ==>
-    (pm [(lswapstr pi a, lswapstr pi b)] (pm pi v) = pm pi (pm [(a,b)] v))``,
+  ``apply_perm pm [(lswapstr pi a, lswapstr pi b)] (apply_perm pm pi v) = apply_perm pm pi (apply_perm pm [(a,b)] v)``,
   SRW_TAC [][GSYM is_perm_decompose] THEN
   Q_TAC SUFF_TAC `(lswapstr pi a,lswapstr pi b)::pi == pi ++ [(a,b)]`
-        THEN1 METIS_TAC [is_perm_def] THEN
+        THEN1 METIS_TAC [is_perm_def,is_perm_apply_perm] THEN
   METIS_TAC [permeq_swap_ends, permeq_sym]);
 
 (* ----------------------------------------------------------------------
@@ -268,18 +269,26 @@ val discrete_is_perm = Store_thm(
   SRW_TAC [][is_perm_def]);
 
 (* functions *)
-val fnpm_def = Define`
-  fnpm (dpm:'a pm) (rpm: 'b pm) p f x = rpm p (f (dpm (REVERSE p) x))
+val fun_perm_def = Define`
+  fun_perm (dpm:'a perm) (rpm: 'b perm) = perm_ABS (λp f x. apply_perm rpm p (f (apply_perm dpm (REVERSE p) x)))
 `;
 
-val fnpm_is_perm = Store_thm(
-  "fnpm_is_perm",
-  ``is_perm dpm /\ is_perm rpm ==> is_perm (fnpm dpm rpm)``,
-  SRW_TAC [][is_perm_def, fnpm_def, FUN_EQ_THM, listTheory.REVERSE_APPEND] THEN
-  METIS_TAC [permof_REVERSE_monotone]);
+val _ = overload_on ("fnpm", ``\dpm rpm. apply_perm (fun_perm dpm rpm)``);
+
+val fnpm_def = store_thm(
+"fnpm_def",
+``fnpm dpm rpm p f x = apply_perm rpm p (f (apply_perm dpm (REVERSE p) x))``,
+srw_tac [][fun_perm_def] >>
+qmatch_abbrev_tac `apply_perm (perm_ABS r) p f x = z` >>
+qsuff_tac `apply_perm (perm_ABS r) = r` >- metis_tac [FUN_EQ_THM] >>
+srw_tac [][GSYM perm_bijections] >>
+unabbrev_all_tac >>
+SRW_TAC [][is_perm_def, FUN_EQ_THM, listTheory.REVERSE_APPEND, is_perm_decompose] THEN
+METIS_TAC [permof_REVERSE_monotone,is_perm_def,is_perm_apply_perm]);
 
 (* sets *)
-val _ = overload_on ("setpm", ``λpm. fnpm pm (K I) : (α -> bool) pm``)
+val _ = overload_on ("set_perm", ``λpm. fun_perm pm (perm_ABS (K I)) : (α -> bool) perm``)
+val _ = overload_on ("setpm", ``λpm. apply_perm (set_perm pm)``);
 
 val _ = add_rule {fixity = Suffix 2100,
                   term_name = "⁻¹",
@@ -291,8 +300,11 @@ val _ = TeX_notation {hol="⁻¹", TeX= ("\\ensuremath{\\sp{-1}}", 1)}
 
 val perm_IN = Store_thm(
   "perm_IN",
-  ``is_perm pm ==> (x IN (setpm pm π s) = pm π⁻¹ x IN s)``,
-  SRW_TAC [][fnpm_def, SPECIFICATION]);
+  ``(x IN (setpm pm π s) = apply_perm pm π⁻¹ x IN s)``,
+  SRW_TAC [][fnpm_def, SPECIFICATION] THEN
+  let open combinTheory in
+    METIS_TAC [perm_bijections, K_THM, I_THM, discrete_is_perm]
+  end);
 
 val perm_UNIV = Store_thm(
   "perm_UNIV",
@@ -308,30 +320,27 @@ val perm_EMPTY = Store_thm(
 
 val perm_INSERT = store_thm(
   "perm_INSERT",
-  ``is_perm pm ==> (setpm pm π (e INSERT s) = pm π e INSERT setpm pm π s)``,
+  ``setpm pm π (e INSERT s) = apply_perm pm π e INSERT setpm pm π s``,
   SRW_TAC [][EXTENSION, perm_IN, is_perm_eql]);
 
 val perm_UNION = store_thm(
   "perm_UNION",
-  ``is_perm pm ==>
-    (setpm pm π (s1 UNION s2) = setpm pm π s1 UNION setpm pm π s2)``,
+  ``setpm pm π (s1 UNION s2) = setpm pm π s1 UNION setpm pm π s2``,
   SRW_TAC [][EXTENSION, perm_IN]);
 
 val perm_DIFF = store_thm(
   "perm_DIFF",
-  ``is_perm pm ==> (setpm pm pi (s DIFF t) =
-                    setpm pm pi s DIFF setpm pm pi t)``,
+  ``setpm pm pi (s DIFF t) = setpm pm pi s DIFF setpm pm pi t``,
   SRW_TAC [][EXTENSION, perm_IN]);
 
 val perm_DELETE = store_thm(
   "perm_DELETE",
-  ``is_perm pm ==> (setpm pm p (s DELETE e) = setpm pm p s DELETE pm p e)``,
+  ``setpm pm p (s DELETE e) = setpm pm p s DELETE apply_perm pm p e``,
   SRW_TAC [][EXTENSION, perm_IN, is_perm_eql]);
 
 val perm_FINITE = Store_thm(
   "perm_FINITE",
-  ``is_perm pm ==> (FINITE (setpm pm p s) = FINITE s)``,
-  STRIP_TAC THEN
+  ``FINITE (setpm pm p s) = FINITE s``,
   Q_TAC SUFF_TAC `(!s. FINITE s ==> FINITE (setpm pm p s)) /\
                   (!s. FINITE s ==> !t p. (setpm pm p t = s) ==> FINITE t)`
         THEN1 METIS_TAC [] THEN
