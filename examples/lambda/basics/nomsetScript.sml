@@ -774,7 +774,7 @@ val FINITE_patoms = Store_thm(
 val patoms_fresh = Store_thm(
   "patoms_fresh",
   ``!p. x ∉ patoms p ∧ y ∉ patoms p ⇒ (cpmpm [(x,y)] p = p)``,
-  METIS_TAC [supp_supports, support_def, cpmpm_is_perm]);
+  METIS_TAC [supp_supports, support_def]);
 
 val perm_of_unchanged = store_thm(
   "perm_of_unchanged",
@@ -789,66 +789,61 @@ val IN_patoms_MEM = store_thm(
   ASM_SIMP_TAC (srw_ss()) [pairTheory.FORALL_PROD] THEN METIS_TAC []);
 
 val pm_cpmpm_cancel = prove(
-  ``is_perm pm ==>
-     (pm [(x,y)] (pm (cpmpm [(x,y)] pi) (pm [(x,y)] t)) = pm pi t)``,
-  STRIP_TAC THEN Induct_on `pi` THEN
-  ASM_SIMP_TAC (srw_ss()) [pairTheory.FORALL_PROD, is_perm_nil,
-                           is_perm_sing_inv] THEN
-  `!p q pi t. pm ((swapstr x y p, swapstr x y q)::pi) t =
-              pm [(swapstr x y p, swapstr x y q)] (pm pi t)`
-     by SRW_TAC [][GSYM is_perm_decompose] THEN
+  ``pmact pm [(x,y)] (pmact pm (cpmpm [(x,y)] pi) (pmact pm [(x,y)] t)) = pmact pm pi t``,
+  Induct_on `pi` THEN
+  fsrw_tac [][pairTheory.FORALL_PROD, pmact_nil,
+              pmact_sing_inv] THEN
+  `!p q pi t. pmact pm ((swapstr x y p, swapstr x y q)::pi) t =
+              pmact pm [(swapstr x y p, swapstr x y q)] (pmact pm pi t)`
+     by SRW_TAC [][GSYM pmact_decompose] THEN
   REPEAT GEN_TAC THEN
   POP_ASSUM (fn th => CONV_TAC (LAND_CONV (ONCE_REWRITE_CONV [th]))) THEN
-  ONCE_REWRITE_TAC [MP (GSYM is_perm_sing_to_back)
-                       (ASSUME ``is_perm pm``)] THEN
+  ONCE_REWRITE_TAC [GSYM pmact_sing_to_back] THEN
   SRW_TAC [][] THEN
-  SRW_TAC [][GSYM is_perm_decompose]);
+  SRW_TAC [][GSYM pmact_decompose]);
 
-val is_perm_supp_empty = store_thm(
-  "is_perm_supp_empty",
-  ``is_perm pm ==> (supp (fnpm cpmpm (fnpm pm pm)) pm = {})``,
-  STRIP_TAC THEN MATCH_MP_TAC supp_unique_apart THEN SRW_TAC [][] THEN
-  SRW_TAC [][support_def, FUN_EQ_THM, fnpm_def, pm_cpmpm_cancel]);
+val pmact_supp_empty = store_thm(
+  "pmact_supp_empty",
+  ``(supp (fn_pmact cpm_pmact (fn_pmact pm pm)) (pmact pm) = {})``,
+  MATCH_MP_TAC supp_unique_apart THEN SRW_TAC [][] THEN
+  SRW_TAC [][support_def, FUN_EQ_THM, fnpm_def, (SIMP_RULE (srw_ss()) [] pm_cpmpm_cancel)]);
 
 val supp_pm_fresh = store_thm(
   "supp_pm_fresh",
-  ``is_perm pm /\ (supp pm x = {}) ==> (pm pi x = x)``,
+  ``(supp pm x = {}) ==> (pmact pm pi x = x)``,
   Induct_on `pi` THEN
-  ASM_SIMP_TAC (srw_ss()) [pairTheory.FORALL_PROD, is_perm_nil] THEN
+  ASM_SIMP_TAC (srw_ss()) [pairTheory.FORALL_PROD, pmact_nil] THEN
   REPEAT STRIP_TAC THEN
-  `pm ((p_1,p_2)::pi) x = pm [(p_1,p_2)] (pm pi x)`
-     by SIMP_TAC (srw_ss()) [GSYM is_perm_decompose,
-                             ASSUME ``is_perm pm``] THEN
+  `pmact pm ((p_1,p_2)::pi) x = pmact pm [(p_1,p_2)] (pmact pm pi x)`
+     by SIMP_TAC (srw_ss()) [GSYM pmact_decompose] THEN
   SRW_TAC [][supp_fresh]);
 
 val pm_pm_cpmpm = store_thm(
   "pm_pm_cpmpm",
-  ``is_perm pm ==>
-        (pm pi1 (pm pi2 s) = pm (cpmpm pi1 pi2) (pm pi1 s))``,
-  STRIP_TAC THEN Q.MATCH_ABBREV_TAC `L = R` THEN
-  `L = fnpm pm pm pi1 (pm pi2) (pm pi1 s)`
-     by SRW_TAC [][fnpm_def, is_perm_inverse] THEN
-  `_ = fnpm cpmpm
-            (fnpm pm pm)
+  ``pmact pm pi1 (pmact pm pi2 s) = pmact pm (cpmpm pi1 pi2) (pmact pm pi1 s)``,
+  Q.MATCH_ABBREV_TAC `L = R` THEN
+  `L = fnpm pm pm pi1 (pmact pm pi2) (pmact pm pi1 s)`
+     by SRW_TAC [][fnpm_def, pmact_inverse] THEN
+  `_ = fnpm cpm_pmact
+            (fn_pmact pm pm)
             pi1
-            pm
+            (pmact pm)
             (cpmpm pi1 pi2)
-            (pm pi1 s)`
+            (pmact pm pi1 s)`
      by (ONCE_REWRITE_TAC [fnpm_def] THEN
-         ONCE_REWRITE_TAC [fnpm_def] THEN
-         SRW_TAC [][is_perm_inverse]) THEN
-  `fnpm cpmpm (fnpm pm pm) pi1 pm = pm`
-     by SRW_TAC [][supp_pm_fresh, is_perm_supp_empty] THEN
+         SRW_TAC [][pmact_inverse]) THEN
+  `fnpm cpm_pmact (fn_pmact pm pm) pi1 (pmact pm) = (pmact pm)`
+     by SRW_TAC [][supp_pm_fresh, pmact_supp_empty] THEN
   METIS_TAC []);
 
-val lswapstr_lswapstr_cpmpm = save_thm(
-  "lswapstr_lswapstr_cpmpm",
-  (SIMP_RULE (srw_ss()) []  o Q.INST [`pm` |-> `lswapstr`] o
+val stringpm_stringpm_cpmpm = save_thm(
+  "stringpm_stringpm_cpmpm",
+  (SIMP_RULE std_ss []  o Q.INST [`pm` |-> `string_pmact`] o
    INST_TYPE [alpha |-> ``:string``]) pm_pm_cpmpm);
 
 val patoms_cpmpm = store_thm(
   "patoms_cpmpm",
-  ``patoms (cpmpm pi1 pi2) = setpm lswapstr pi1 (patoms pi2)``,
+  ``patoms (cpmpm pi1 pi2) = setpm string_pmact pi1 (patoms pi2)``,
   SRW_TAC [][perm_supp]);
 
 (* support for honest to goodness permutations, not just their
