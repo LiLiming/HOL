@@ -378,7 +378,7 @@ val _ = export_rewrites ["optpm_def"]
 
 (* pairs *)
 val raw_pairpm_def = Define`
-  raw_pairpm (apm:'a pmact) (bpm:'b pmact) pi (a,b) = (pmact apm pi a, pmact bpm pi b)
+  raw_pairpm apm bpm pi (a,b) = (pmact apm pi a, pmact bpm pi b)
 `;
 val _ = export_rewrites ["raw_pairpm_def"]
 
@@ -403,97 +403,74 @@ val SND_pairpm = Store_thm(
   Cases_on `v` THEN SRW_TAC [][]);
 
 (* sums *)
-val sumpm_def = Define`
-  (sumpm (pm1:'a pm) (pm2:'b pm) pi (INL x) = INL (pm1 pi x)) /\
-  (sumpm pm1 pm2 pi (INR y) = INR (pm2 pi y))
+val raw_sumpm_def = Define`
+  (raw_sumpm pm1 pm2 pi (INL x) = INL (pmact pm1 pi x)) /\
+  (raw_sumpm pm1 pm2 pi (INR y) = INR (pmact pm2 pi y))
 `;
-val _ = export_rewrites ["sumpm_def"]
+val _ = export_rewrites ["raw_sumpm_def"]
 
-val sumpm_is_perm = Store_thm(
-  "sumpm_is_perm",
-  ``is_perm pm1 /\ is_perm pm2 ==> is_perm (sumpm pm1 pm2)``,
-  SRW_TAC [][is_perm_def, FUN_EQ_THM, permeq_def] THEN Cases_on `x` THEN
-  SRW_TAC [][sumpm_def]);
+val _ = overload_on("sumpm",``λpm1 pm2. pmact (mk_pmact (raw_sumpm pm1 pm2))``);
+
+val sumpm_def = Store_thm(
+  "sumpm_def",
+  ``sumpm pm1 pm2 = raw_sumpm pm1 pm2``,
+  srw_tac [][GSYM pmact_bijections] >>
+  SRW_TAC [][is_pmact_def, FUN_EQ_THM] THEN Cases_on `x` THEN
+  SRW_TAC [][pmact_decompose] >> AP_THM_TAC >> srw_tac [][pmact_permeq]);
 
 (* lists *)
-val listpm_def = Define`
-  (listpm (apm: 'a pm) pi [] = []) /\
-  (listpm apm pi (h::t) = apm pi h :: listpm apm pi t)
+val raw_listpm_def = Define`
+  (raw_listpm apm pi [] = []) /\
+  (raw_listpm apm pi (h::t) = pmact apm pi h :: raw_listpm apm pi t)
 `;
-val _ = export_rewrites ["listpm_def"]
+val _ = export_rewrites ["raw_listpm_def"]
+val _ = overload_on("listpm",``λapm. pmact (mk_pmact (raw_listpm apm))``)
+
+val listpm_def = Store_thm(
+  "listpm_def",
+  ``listpm apm = raw_listpm apm``,
+  srw_tac [][GSYM pmact_bijections] >>
+  SIMP_TAC (srw_ss()) [is_pmact_def, FUN_EQ_THM] THEN
+  STRIP_TAC THEN REPEAT CONJ_TAC THENL [
+    Induct THEN SRW_TAC [][],
+    Induct_on `x` THEN SRW_TAC [][pmact_decompose],
+    REPEAT GEN_TAC THEN STRIP_TAC THEN Induct THEN SRW_TAC [][] >>
+    AP_THM_TAC >> srw_tac [][pmact_permeq]
+  ]);
 
 val listpm_MAP = store_thm(
   "listpm_MAP",
-  ``!l. listpm pm pi l = MAP (pm pi) l``,
-  Induct THEN SRW_TAC [][listpm_def]);
-
-val listpm_is_perm = Store_thm(
-  "listpm_is_perm",
-  ``is_perm pm ==> is_perm (listpm pm)``,
-  SIMP_TAC (srw_ss()) [is_perm_def, FUN_EQ_THM, permeq_def] THEN
-  STRIP_TAC THEN REPEAT CONJ_TAC THENL [
-    Induct THEN SRW_TAC [][],
-    Induct_on `x` THEN SRW_TAC [][],
-    REPEAT GEN_TAC THEN STRIP_TAC THEN Induct THEN SRW_TAC [][]
-  ]);
+  ``!l. listpm pm pi l = MAP (pmact pm pi) l``,
+  Induct THEN fsrw_tac [][]);
 
 val listpm_APPENDlist = store_thm(
   "listpm_APPENDlist",
   ``listpm pm pi (l1 ++ l2) = listpm pm pi l1 ++ listpm pm pi l2``,
-  Induct_on `l1` THEN SRW_TAC [][]);
+  Induct_on `l1` THEN fsrw_tac [][]);
 
-val listpm_APPEND = store_thm(
-  "listpm_APPEND",
-  ``is_perm pm ==> (listpm pm (p1 ++ p2) x = listpm pm p1 (listpm pm p2 x))``,
-  METIS_TAC [listpm_is_perm, is_perm_decompose]);
-
-val listpm_sing_inv = Store_thm(
-  "listpm_sing_inv",
-  ``is_perm pm ⇒ (listpm pm [h] (listpm pm (h::t) l) = listpm pm t l)``,
-  SRW_TAC [][GSYM listpm_APPEND, is_perm_dups]);
-
-val listpm_nil = store_thm(
-  "listpm_nil",
-  ``is_perm pm ⇒ (listpm pm [] x = x)``,
-  SRW_TAC [ETA_ss][is_perm_nil])
-
-val LENGTH_listpm = store_thm(
+val LENGTH_listpm = Store_thm(
   "LENGTH_listpm",
   ``LENGTH (listpm pm pi l) = LENGTH l``,
-  Induct_on `l` >> srw_tac [][])
-val _ = export_rewrites ["LENGTH_listpm"]
+  Induct_on `l` >> fsrw_tac [][])
 
-val EL_listpm = store_thm(
+val EL_listpm = Store_thm(
   "EL_listpm",
-  ``∀l n. n < LENGTH l ==> (EL n (listpm pm pi l) = pm pi (EL n l))``,
+  ``∀l n. n < LENGTH l ==> (EL n (listpm pm pi l) = pmact pm pi (EL n l))``,
   Induct >> srw_tac [][] >> Cases_on `n` >> srw_tac [][] >>
   fsrw_tac [][]);
-val _ = export_rewrites ["EL_listpm"]
 
 val MEM_listpm = store_thm(
   "MEM_listpm",
-  ``is_perm pm ==> (MEM x (listpm pm pi l) ⇔ MEM (pm pi⁻¹ x) l)``,
-  Induct_on `l` >> srw_tac [][is_perm_eql]);
+  ``MEM x (listpm pm pi l) ⇔ MEM (pmact pm pi⁻¹ x) l``,
+  Induct_on `l` >> fsrw_tac [][pmact_eql]);
 
 val MEM_listpm_EXISTS = store_thm(
   "MEM_listpm_EXISTS",
-  ``MEM x (listpm pm pi l) ⇔ ∃y. MEM y l ∧ (x = pm pi y)``,
-  Induct_on `l` >> srw_tac [][] >> metis_tac []);
+  ``MEM x (listpm pm pi l) ⇔ ∃y. MEM y l ∧ (x = pmact pm pi y)``,
+  Induct_on `l` >> fsrw_tac [][] >> metis_tac []);
 
 (* lists of pairs of strings, (concrete rep for permutations) *)
-val _ = overload_on ("cpmpm", ``listpm (pairpm lswapstr lswapstr)``);
-
-val cpmpm_nil = Store_thm(
-  "cpmpm_nil",
-  ``cpmpm [] p = p``,
-  SRW_TAC [][listpm_nil]);
-
-(* useful in calls to METIS; simplifier will get this automatically from
-   built-in rewrites *)
-val cpmpm_is_perm = store_thm(
-  "cpmpm_is_perm",
-  ``is_perm cpmpm``,
-  SRW_TAC [][]);
+val _ = overload_on ("cpmpm", ``listpm (mk_pmact (pairpm stringpm stringpm))``);
 
 (* ----------------------------------------------------------------------
     Notion of support, and calculating the smallest set of support
