@@ -302,56 +302,56 @@ METIS_TAC [permof_REVERSE_monotone,pmact_permeq]);
 (* sets *)
 val _ = overload_on ("setpm", ``λpm. pmact (mk_pmact (fnpm pm discretepm) : α set pmact)``);
 
-val perm_IN = Store_thm(
-  "perm_IN",
+val pmact_IN = Store_thm(
+  "pmact_IN",
   ``(x IN (setpm pm π s) = pmact pm π⁻¹ x IN s)``,
   SRW_TAC [][fnpm_def, SPECIFICATION] THEN
   let open combinTheory in
     METIS_TAC [pmact_bijections, K_THM, I_THM, discrete_is_pmact]
   end);
 
-val perm_UNIV = Store_thm(
-  "perm_UNIV",
+val pmact_UNIV = Store_thm(
+  "pmact_UNIV",
   ``setpm pm π UNIV = UNIV``,
   SRW_TAC [][EXTENSION, SPECIFICATION, fnpm_def] THEN
   SRW_TAC [][UNIV_DEF]);
 
-val perm_EMPTY = Store_thm(
-  "perm_EMPTY",
+val pmact_EMPTY = Store_thm(
+  "pmact_EMPTY",
   ``setpm pm π {} = {}``,
   SRW_TAC [][EXTENSION, SPECIFICATION, fnpm_def] THEN
   SRW_TAC [][EMPTY_DEF]);
 
-val perm_INSERT = store_thm(
-  "perm_INSERT",
+val pmact_INSERT = store_thm(
+  "pmact_INSERT",
   ``setpm pm π (e INSERT s) = pmact pm π e INSERT setpm pm π s``,
-  SRW_TAC [][EXTENSION, perm_IN, pmact_eql]);
+  SRW_TAC [][EXTENSION, pmact_IN, pmact_eql]);
 
-val perm_UNION = store_thm(
-  "perm_UNION",
+val pmact_UNION = store_thm(
+  "pmact_UNION",
   ``setpm pm π (s1 UNION s2) = setpm pm π s1 UNION setpm pm π s2``,
-  SRW_TAC [][EXTENSION, perm_IN]);
+  SRW_TAC [][EXTENSION, pmact_IN]);
 
-val perm_DIFF = store_thm(
-  "perm_DIFF",
+val pmact_DIFF = store_thm(
+  "pmact_DIFF",
   ``setpm pm pi (s DIFF t) = setpm pm pi s DIFF setpm pm pi t``,
-  SRW_TAC [][EXTENSION, perm_IN]);
+  SRW_TAC [][EXTENSION, pmact_IN]);
 
-val perm_DELETE = store_thm(
-  "perm_DELETE",
+val pmact_DELETE = store_thm(
+  "pmact_DELETE",
   ``setpm pm p (s DELETE e) = setpm pm p s DELETE pmact pm p e``,
-  SRW_TAC [][EXTENSION, perm_IN, pmact_eql]);
+  SRW_TAC [][EXTENSION, pmact_IN, pmact_eql]);
 
-val perm_FINITE = Store_thm(
-  "perm_FINITE",
+val pmact_FINITE = Store_thm(
+  "pmact_FINITE",
   ``FINITE (setpm pm p s) = FINITE s``,
   Q_TAC SUFF_TAC `(!s. FINITE s ==> FINITE (setpm pm p s)) /\
                   (!s. FINITE s ==> !t p. (setpm pm p t = s) ==> FINITE t)`
         THEN1 METIS_TAC [] THEN
   CONJ_TAC THENL [
-    HO_MATCH_MP_TAC FINITE_INDUCT THEN SRW_TAC [][perm_INSERT],
+    HO_MATCH_MP_TAC FINITE_INDUCT THEN SRW_TAC [][pmact_INSERT],
     HO_MATCH_MP_TAC FINITE_INDUCT THEN
-    SRW_TAC [][pmact_eql, perm_INSERT]
+    SRW_TAC [][pmact_eql, pmact_INSERT]
   ]);
 
 (* options *)
@@ -573,7 +573,7 @@ val setpm_postcompose = store_thm(
 val perm_supp = store_thm(
   "perm_supp",
   ``is_perm pm ==> (supp pm (pm p x) = setpm perm_of p (supp pm x))``,
-  SIMP_TAC (srw_ss()) [EXTENSION, perm_IN, supp_def, is_perm_eql,
+  SIMP_TAC (srw_ss()) [EXTENSION, pmact_IN, supp_def, is_perm_eql,
                        INFINITE_DEF] THEN STRIP_TAC THEN
   Q.X_GEN_TAC `a` THEN
   `!e x y. pm (REVERSE p) (pm [(x,y)] e) =
@@ -596,7 +596,7 @@ val supp_apart = store_thm(
   STRIP_TAC THEN
   `a ≠ b` by METIS_TAC [] THEN
   `b ∈ setpm perm_of [(a,b)] (supp pm x)`
-     by SRW_TAC[][perm_IN, swapstr_def] THEN
+     by SRW_TAC[][pmact_IN, swapstr_def] THEN
   `b ∈ supp pm (pm [(a,b)] x)`
      by SRW_TAC [][perm_supp] THEN
   `supp pm x ≠ supp pm (pm [(a,b)] x)` by METIS_TAC [] THEN
@@ -940,11 +940,11 @@ val fmpm_def = Define`
 
 val lemma0 = prove(
   ``is_perm pm ==> (pm pi x ∈ X = x ∈ setpm pm (REVERSE pi) X)``,
-  SRW_TAC [][perm_IN])
+  SRW_TAC [][pmact_IN])
 val lemma1 = prove(``{x | x ∈ X} = X``, SRW_TAC [][pred_setTheory.EXTENSION])
 val lemma = prove(
   ``is_perm pm ==> FINITE { x | pm pi x ∈ FDOM f}``,
-  SIMP_TAC bool_ss [lemma0, lemma1, perm_FINITE,
+  SIMP_TAC bool_ss [lemma0, lemma1, pmact_FINITE,
                     finite_mapTheory.FDOM_FINITE]);
 
 val fmpm_applied = store_thm(
@@ -1130,7 +1130,7 @@ val fcond_equivariant = Store_thm(
   "fcond_equivariant",
   ``fcond pm (fnpm perm_of pm pi f) = fcond pm f``,
   SIMP_TAC (srw_ss() ++ CONJ_ss) [fcond_def, EQ_IMP_THM, perm_supp, fnpm_def,
-                                  perm_IN, perm_FINITE] THEN
+                                  pmact_IN, pmact_FINITE] THEN
   METIS_TAC [is_perm_inverse, perm_of_is_perm]);
 
 
@@ -1174,7 +1174,7 @@ val fresh_equivariant = store_thm(
      by (Q.SPEC_THEN `supp (fnpm perm_of pm) (fnpm perm_of pm pi f)`
                      MP_TAC NEW_def THEN METIS_TAC [fcond_def]) THEN
   `perm_of pi⁻¹ b ∉ supp (fnpm perm_of pm) f`
-     by (POP_ASSUM MP_TAC THEN SRW_TAC [][perm_supp, perm_IN]) THEN
+     by (POP_ASSUM MP_TAC THEN SRW_TAC [][perm_supp, pmact_IN]) THEN
   `fresh pm (fnpm perm_of pm pi f) = fnpm perm_of pm pi f b`
      by METIS_TAC [fresh_thm] THEN
   SRW_TAC [][fnpm_def, is_perm_injective, GSYM fresh_thm]);
