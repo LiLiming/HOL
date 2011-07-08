@@ -281,8 +281,10 @@ val discrete_is_pmact = Store_thm(
   ``is_pmact (K I)``,
   SRW_TAC [][is_pmact_def]);
 
-val _ = overload_on("stringpm",``pmact (mk_pmact perm_of)``);
-val _ = overload_on("discretepm",``pmact (mk_pmact (K I))``);
+val _ = overload_on("string_pmact", ``mk_pmact perm_of``);
+val _ = overload_on("stringpm",``pmact string_pmact``);
+val _ = overload_on("discrete_pmact",``(mk_pmact (K I))``);
+val _ = overload_on("discretepm",``pmact discrete_pmact``);
 
 val stringpm_def = Store_thm(
 "stringpm_def",
@@ -300,7 +302,8 @@ val raw_fnpm_def = Define`
 `;
 val _ = export_rewrites["raw_fnpm_def"];
 
-val _ = overload_on ("fnpm", ``λdpm rpm. pmact (mk_pmact (raw_fnpm dpm rpm))``);
+val _ = overload_on ("fn_pmact", ``λdpm rpm. mk_pmact (raw_fnpm dpm rpm)``);
+val _ = overload_on ("fnpm", ``λdpm rpm. pmact (fn_pmact dpm rpm)``);
 
 val fnpm_def = store_thm(
 "fnpm_def",
@@ -310,7 +313,8 @@ SRW_TAC [][is_pmact_def, FUN_EQ_THM, listTheory.REVERSE_APPEND, pmact_decompose]
 METIS_TAC [permof_REVERSE_monotone,pmact_permeq]);
 
 (* sets *)
-val _ = overload_on ("setpm", ``λpm. pmact (mk_pmact (fnpm pm (mk_pmact discretepm)) : α set pmact)``);
+val _ = overload_on ("set_pmact", ``λpm. mk_pmact (fnpm pm discrete_pmact) : α set pmact``);
+val _ = overload_on ("setpm", ``λpm. pmact (set_pmact pm)``);
 
 val pmact_IN = Store_thm(
   "pmact_IN",
@@ -371,7 +375,8 @@ val raw_optpm_def = Define`
   (raw_optpm pm pi (SOME x) = SOME (pmact pm pi x))`;
 val _ = export_rewrites ["raw_optpm_def"];
 
-val _ = overload_on("optpm",``λpm. pmact (mk_pmact (raw_optpm pm))``);
+val _ = overload_on("opt_pmact",``λpm. mk_pmact (raw_optpm pm)``);
+val _ = overload_on("optpm",``λpm. pmact (opt_pmact pm)``);
 
 val optpm_def = store_thm(
 "optpm_def",
@@ -392,7 +397,8 @@ val raw_pairpm_def = Define`
 `;
 val _ = export_rewrites ["raw_pairpm_def"]
 
-val _ = overload_on("pairpm",``λapm bpm. pmact (mk_pmact (raw_pairpm apm bpm))``);
+val _ = overload_on("pair_pmact",``λapm bpm. mk_pmact (raw_pairpm apm bpm)``);
+val _ = overload_on("pairpm",``λapm bpm. pmact (pair_pmact apm bpm)``);
 
 val pairpm_def = Store_thm(
   "pairpm_def",
@@ -419,7 +425,8 @@ val raw_sumpm_def = Define`
 `;
 val _ = export_rewrites ["raw_sumpm_def"]
 
-val _ = overload_on("sumpm",``λpm1 pm2. pmact (mk_pmact (raw_sumpm pm1 pm2))``);
+val _ = overload_on("sum_pmact",``λpm1 pm2. mk_pmact (raw_sumpm pm1 pm2)``);
+val _ = overload_on("sumpm",``λpm1 pm2. pmact (sum_pmact pm1 pm2)``);
 
 val sumpm_def = Store_thm(
   "sumpm_def",
@@ -434,7 +441,9 @@ val raw_listpm_def = Define`
   (raw_listpm apm pi (h::t) = pmact apm pi h :: raw_listpm apm pi t)
 `;
 val _ = export_rewrites ["raw_listpm_def"]
-val _ = overload_on("listpm",``λapm. pmact (mk_pmact (raw_listpm apm))``)
+
+val _ = overload_on("list_pmact",``λapm. mk_pmact (raw_listpm apm)``);
+val _ = overload_on("listpm",``λapm. pmact (list_pmact apm)``)
 
 val listpm_def = Store_thm(
   "listpm_def",
@@ -480,7 +489,8 @@ val MEM_listpm_EXISTS = store_thm(
   Induct_on `l` >> fsrw_tac [][] >> metis_tac []);
 
 (* lists of pairs of strings, (concrete rep for permutations) *)
-val _ = overload_on ("cpmpm", ``listpm (mk_pmact (pairpm (mk_pmact stringpm) (mk_pmact stringpm)))``);
+val _ = overload_on("cpm_pmact", ``list_pmact (pair_pmact string_pmact string_pmact)``);
+val _ = overload_on ("cpmpm", ``pmact cpm_pmact``);
 
 (* ----------------------------------------------------------------------
     Notion of support, and calculating the smallest set of support
@@ -494,7 +504,7 @@ val support_def = Define`
 val pmact_support = store_thm(
   "pmact_support",
   ``(support pm (pmact pm π x) s =
-     support pm x (setpm (mk_pmact stringpm) π⁻¹ s))``,
+     support pm x (setpm string_pmact π⁻¹ s))``,
   ASM_SIMP_TAC (srw_ss()) [EQ_IMP_THM, support_def, pmact_IN] THEN
   STRIP_TAC THEN STRIP_TAC THEN
   MAP_EVERY Q.X_GEN_TAC [`a`,`b`] THEN STRIP_TAC THENL [
@@ -581,7 +591,7 @@ val setpm_postcompose = store_thm(
 
 val perm_supp = store_thm(
   "perm_supp",
-  ``supp pm (pmact pm p x) = setpm (mk_pmact stringpm) p (supp pm x)``,
+  ``supp pm (pmact pm p x) = setpm string_pmact p (supp pm x)``,
   SIMP_TAC (srw_ss()) [EXTENSION, pmact_IN, supp_def, pmact_eql,
                        INFINITE_DEF] THEN
   Q.X_GEN_TAC `a` THEN
@@ -604,7 +614,7 @@ val supp_apart = store_thm(
   ``a ∈ supp pm x /\ b ∉ supp pm x ⇒ pmact pm [(a,b)] x ≠ x``,
   STRIP_TAC THEN
   `a ≠ b` by METIS_TAC [] THEN
-  `b ∈ setpm (mk_pmact stringpm) [(a,b)] (supp pm x)`
+  `b ∈ setpm string_pmact [(a,b)] (supp pm x)`
      by SRW_TAC[][pmact_IN, swapstr_def] THEN
   `b ∈ supp pm (pmact pm [(a,b)] x)`
      by metis_tac [perm_supp] THEN
@@ -687,12 +697,12 @@ val supp_unique_apart = store_thm(
 (* some examples of supp *)
 val supp_string = Store_thm(
   "supp_string",
-  ``supp perm_of s = {s}``,
+  ``supp string_pmact s = {s}``,
   MATCH_MP_TAC supp_unique_apart THEN SRW_TAC [][support_def]);
 
 val supp_discrete = Store_thm(
   "supp_discrete",
-  ``supp (K I) x = {}``,
+  ``supp discrete_pmact x = {}``,
   SRW_TAC [][supp_def, INFINITE_DEF]);
 
 val supp_unitfn = store_thm(
@@ -713,48 +723,48 @@ val supp_unitfn = store_thm(
 (* options *)
 val supp_optpm = store_thm(
   "supp_optpm",
-  ``(supp (optpm pm) NONE = {}) /\
-    (supp (optpm pm) (SOME x) = supp pm x)``,
+  ``(supp (opt_pmact pm) NONE = {}) /\
+    (supp (opt_pmact pm) (SOME x) = supp pm x)``,
   SRW_TAC [][supp_def, optpm_def, pred_setTheory.INFINITE_DEF]);
 val _ = export_rewrites ["supp_optpm"]
 
 (* pairs *)
 val supp_pairpm = Store_thm(
   "supp_pairpm",
-  ``(supp (pairpm pm1 pm2) (x,y) = supp pm1 x UNION supp pm2 y)``,
+  ``(supp (pair_pmact pm1 pm2) (x,y) = supp pm1 x UNION supp pm2 y)``,
   SRW_TAC [][supp_def, GSPEC_OR, INFINITE_DEF]);
 
 (* lists *)
 val supp_listpm = Store_thm(
   "supp_listpm",
-  ``(supp (listpm apm) [] = {}) /\
-    (supp (listpm apm) (h::t) = supp apm h UNION supp (listpm apm) t)``,
+  ``(supp (list_pmact apm) [] = {}) /\
+    (supp (list_pmact apm) (h::t) = supp apm h UNION supp (list_pmact apm) t)``,
   SRW_TAC [][supp_def, INFINITE_DEF, GSPEC_OR]);
 
 val listsupp_APPEND = Store_thm(
   "listsupp_APPEND",
-  ``supp (listpm p) (l1 ++ l2) = supp (listpm p) l1 ∪ supp (listpm p) l2``,
+  ``supp (list_pmact p) (l1 ++ l2) = supp (list_pmact p) l1 ∪ supp (list_pmact p) l2``,
   Induct_on `l1` THEN SRW_TAC [][AC UNION_ASSOC UNION_COMM]);
 
 val listsupp_REVERSE = Store_thm(
   "listsupp_REVERSE",
-  ``supp (listpm p) (REVERSE l) = supp (listpm p) l``,
+  ``supp (list_pmact p) (REVERSE l) = supp (list_pmact p) l``,
   Induct_on `l` THEN SRW_TAC [][UNION_COMM]);
 
 val IN_supp_listpm = store_thm(
   "IN_supp_listpm",
-  ``a ∈ supp (listpm pm) l ⇔ ∃e. MEM e l ∧ a ∈ supp pm e``,
+  ``a ∈ supp (list_pmact pm) l ⇔ ∃e. MEM e l ∧ a ∈ supp pm e``,
   Induct_on `l` >> srw_tac [DNF_ss][]);
 
 val NOT_IN_supp_listpm = store_thm(
   "NOT_IN_supp_listpm",
-  ``a ∉ supp (listpm pm) l ⇔ ∀e. MEM e l ⇒ a ∉ supp pm e``,
+  ``a ∉ supp (list_pmact pm) l ⇔ ∀e. MEM e l ⇒ a ∉ supp pm e``,
   metis_tac [IN_supp_listpm])
 
 
 (* concrete permutations, which get their own overload for calculating their
    support *)
-val _ = overload_on ("patoms", ``supp (listpm (pairpm lswapstr lswapstr))``)
+val _ = overload_on ("patoms", ``supp (list_pmact (pair_pmact string_pmact string_pmact))``)
 
 val FINITE_patoms = Store_thm(
   "FINITE_patoms",
