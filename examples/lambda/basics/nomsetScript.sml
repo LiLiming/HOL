@@ -869,7 +869,7 @@ val perm_supp_finite = store_thm(
 
 val lemma = prove(
   ``(perm_of p x = x) /\ (perm_of p y = y) ==>
-    (fnpm perm_of perm_of [(x,y)] (perm_of p) = perm_of p)``,
+    (fnpm string_pmact string_pmact [(x,y)] (perm_of p) = perm_of p)``,
   STRIP_TAC THEN
   SIMP_TAC (srw_ss()) [FUN_EQ_THM, fnpm_def] THEN
   Q.X_GEN_TAC `a` THEN
@@ -885,7 +885,7 @@ val lemma = prove(
 
 val supp_perm_of = store_thm(
   "supp_perm_of",
-  ``supp (fnpm perm_of perm_of) (perm_of p) = { s | ~(perm_of p s = s) }``,
+  ``supp (fn_pmact string_pmact string_pmact) (perm_of p) = { s | ~(perm_of p s = s) }``,
   HO_MATCH_MP_TAC supp_unique THEN
   SRW_TAC [][perm_supp_finite] THENL [
     SRW_TAC [][support_def, FUN_EQ_THM, fnpm_def, perm_of_swapstr],
@@ -893,7 +893,7 @@ val supp_perm_of = store_thm(
     SRW_TAC [][pred_setTheory.SUBSET_DEF] THEN
     SPOSE_NOT_THEN ASSUME_TAC THEN
     Q_TAC (NEW_TAC "y") `{x; perm_of (REVERSE p) x} UNION s'` THEN
-    `!a. fnpm perm_of perm_of [(x,y)] (perm_of p) a = perm_of p a`
+    `!a. fnpm string_pmact string_pmact [(x,y)] (perm_of p) a = perm_of p a`
        by METIS_TAC [support_def] THEN
     `p ++ [(x,y)] == [(x,y)] ++ p`
        by (POP_ASSUM (ASSUME_TAC o SIMP_RULE (srw_ss()) [fnpm_def]) THEN
@@ -919,32 +919,23 @@ val supp_perm_of = store_thm(
 
 val support_FINITE_supp = store_thm(
   "support_FINITE_supp",
-  ``is_perm pm /\ support pm v A /\ FINITE A ==> FINITE (supp pm v)``,
+  ``support pm v A /\ FINITE A ==> FINITE (supp pm v)``,
   METIS_TAC [supp_smallest, SUBSET_FINITE]);
 
 val support_fnapp = store_thm(
   "support_fnapp",
-  ``is_perm dpm /\ is_perm rpm /\
-    support (fnpm dpm rpm) f A /\ support dpm d B ==>
+  ``support (fn_pmact dpm rpm) f A /\ support dpm d B ==>
     support rpm (f d) (A UNION B)``,
   SRW_TAC [][support_def] THEN
-  `rpm [(x,y)] (f d) = fnpm dpm rpm [(x,y)] f (dpm [(x,y)] d)`
-     by SRW_TAC [][fnpm_def] THEN
-  SRW_TAC [][]);
+  fsrw_tac [][fnpm_def,FUN_EQ_THM] >>
+  metis_tac []);
 
 val supp_fnapp = store_thm(
   "supp_fnapp",
-  ``is_perm dpm /\ is_perm rpm ==>
-    supp rpm (f x) SUBSET supp (fnpm dpm rpm) f UNION supp dpm x``,
-  METIS_TAC [supp_smallest, FINITE_UNION, supp_supports, fnpm_is_perm,
-             support_fnapp, supp_finite_or_UNIV, SUBSET_UNIV,
-             UNION_UNIV]);
-
-val notinsupp_fnapp = store_thm(
-  "notinsupp_fnapp",
-  ``is_perm dpm ∧ is_perm rpm ∧ v ∉ supp (fnpm dpm rpm) f ∧ v ∉ supp dpm x ==>
-    v ∉ supp rpm (f x)``,
-  prove_tac [supp_fnapp, SUBSET_DEF, IN_UNION]);
+  ``FINITE (supp (fn_pmact dpm rpm) f) /\
+    FINITE (supp dpm x) ==>
+    supp rpm (f x) SUBSET supp (fn_pmact dpm rpm) f UNION supp dpm x``,
+  METIS_TAC [supp_smallest, FINITE_UNION, supp_supports, support_fnapp]);
 
 open finite_mapTheory
 val fmpm_def = Define`
