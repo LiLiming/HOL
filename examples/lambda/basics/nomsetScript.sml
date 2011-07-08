@@ -281,8 +281,18 @@ val discrete_is_pmact = Store_thm(
   ``is_pmact (K I)``,
   SRW_TAC [][is_pmact_def]);
 
-val _ = overload_on("stringpm",``mk_pmact perm_of``);
-val _ = overload_on("discretepm",``mk_pmact (K I)``);
+val _ = overload_on("stringpm",``pmact (mk_pmact perm_of)``);
+val _ = overload_on("discretepm",``pmact (mk_pmact (K I))``);
+
+val stringpm_def = Store_thm(
+"stringpm_def",
+``stringpm = perm_of``,
+srw_tac [][GSYM pmact_bijections]);
+
+val discretepm_def = Store_thm(
+"discretepm_def",
+``discretepm = K I``,
+srw_tac [][GSYM pmact_bijections]);
 
 (* functions *)
 val raw_fnpm_def = Define`
@@ -300,7 +310,7 @@ SRW_TAC [][is_pmact_def, FUN_EQ_THM, listTheory.REVERSE_APPEND, pmact_decompose]
 METIS_TAC [permof_REVERSE_monotone,pmact_permeq]);
 
 (* sets *)
-val _ = overload_on ("setpm", ``λpm. pmact (mk_pmact (fnpm pm discretepm) : α set pmact)``);
+val _ = overload_on ("setpm", ``λpm. pmact (mk_pmact (fnpm pm (mk_pmact discretepm)) : α set pmact)``);
 
 val pmact_IN = Store_thm(
   "pmact_IN",
@@ -470,55 +480,55 @@ val MEM_listpm_EXISTS = store_thm(
   Induct_on `l` >> fsrw_tac [][] >> metis_tac []);
 
 (* lists of pairs of strings, (concrete rep for permutations) *)
-val _ = overload_on ("cpmpm", ``listpm (mk_pmact (pairpm stringpm stringpm))``);
+val _ = overload_on ("cpmpm", ``listpm (mk_pmact (pairpm (mk_pmact stringpm) (mk_pmact stringpm)))``);
 
 (* ----------------------------------------------------------------------
     Notion of support, and calculating the smallest set of support
    ---------------------------------------------------------------------- *)
 
 val support_def = Define`
-  support (pm : (string # string) list -> α -> α) (a:α) (supp:string set) =
-     ∀x y. x ∉ supp /\ y ∉ supp ⇒ (pm [(x,y)] a = a)
+  support (pm : α pmact) (a:α) (supp:string set) =
+     ∀x y. x ∉ supp /\ y ∉ supp ⇒ (pmact pm [(x,y)] a = a)
 `;
 
-val perm_support = store_thm(
-  "perm_support",
-  ``is_perm pm ==> (support pm (pm π x) s =
-                    support pm x (setpm perm_of π⁻¹ s))``,
-  ASM_SIMP_TAC (srw_ss()) [EQ_IMP_THM, support_def, perm_IN] THEN
-  STRIP_TAC THEN CONJ_TAC THEN STRIP_TAC THEN
+val pmact_support = store_thm(
+  "pmact_support",
+  ``(support pm (pmact pm π x) s =
+     support pm x (setpm (mk_pmact stringpm) π⁻¹ s))``,
+  ASM_SIMP_TAC (srw_ss()) [EQ_IMP_THM, support_def, pmact_IN] THEN
+  STRIP_TAC THEN STRIP_TAC THEN
   MAP_EVERY Q.X_GEN_TAC [`a`,`b`] THEN STRIP_TAC THENL [
-    `pm [(perm_of π a, perm_of π b)] (pm π x) = pm π x`
+    `pmact pm [(perm_of π a, perm_of π b)] (pmact pm π x) = pmact pm π x`
        by METIS_TAC [] THEN
-    `pm ([(perm_of π a, perm_of π b)] ++ π) x = pm π x`
-       by METIS_TAC [is_perm_def] THEN
+    `pmact pm ([(perm_of π a, perm_of π b)] ++ π) x = pmact pm π x`
+       by METIS_TAC [pmact_decompose] THEN
     `[(perm_of π a, perm_of π b)] ++ π == π ++ [(a,b)]`
        by METIS_TAC [permeq_swap_ends, permeq_sym, listTheory.APPEND] THEN
-    `pm (π ++ [(a,b)]) x = pm π x`
-       by METIS_TAC [is_perm_def] THEN
-    METIS_TAC [is_perm_injective, is_perm_def],
-    `pm [(a,b)] (pm π x) = pm ([(a,b)] ++ π) x` by METIS_TAC [is_perm_def] THEN
+    `pmact pm (π ++ [(a,b)]) x = pmact pm π x`
+       by METIS_TAC [pmact_permeq] THEN
+    METIS_TAC [pmact_injective, pmact_decompose],
+    `pmact pm [(a,b)] (pmact pm π x) = pmact pm ([(a,b)] ++ π) x` by METIS_TAC [pmact_decompose] THEN
     `[(a,b)] ++ π == π ++ [(perm_of π⁻¹ a, perm_of π⁻¹ b)]`
        by (SRW_TAC [][] THEN
            Q.SPECL_THEN [`π`, `perm_of π⁻¹ a`, `perm_of π⁻¹ b`]
                         (ASSUME_TAC o REWRITE_RULE [permof_inverse_applied])
                         permeq_swap_ends THEN
            METIS_TAC [permeq_sym]) THEN
-    `pm [(a,b)] (pm π x) = pm (π ++ [(perm_of π⁻¹ a, perm_of π⁻¹ b)]) x`
-       by METIS_TAC [is_perm_def] THEN
-    ` _ = pm π (pm [(perm_of π⁻¹ a, perm_of π⁻¹ b)] x)`
-       by METIS_TAC [is_perm_def] THEN
-    ASM_SIMP_TAC (srw_ss()) [is_perm_injective]
+    `pmact pm [(a,b)] (pmact pm π x) = pmact pm (π ++ [(perm_of π⁻¹ a, perm_of π⁻¹ b)]) x`
+       by METIS_TAC [pmact_permeq] THEN
+    ` _ = pmact pm π (pmact pm [(perm_of π⁻¹ a, perm_of π⁻¹ b)] x)`
+       by METIS_TAC [pmact_decompose] THEN
+    ASM_SIMP_TAC (srw_ss()) [pmact_injective]
   ]);
 
 val support_dwards_directed = store_thm(
   "support_dwards_directed",
-  ``support pm e s1 /\ support pm e s2 /\ is_perm pm /\
+  ``support pm e s1 /\ support pm e s2 /\
     FINITE s1 /\ FINITE s2 ==>
     support pm e (s1 INTER s2)``,
   SIMP_TAC bool_ss [support_def] THEN
   REPEAT STRIP_TAC THEN
-  Cases_on `x = y` THEN1 METIS_TAC [is_perm_id, is_perm_def] THEN
+  Cases_on `x = y` THEN1 METIS_TAC [pmact_id, pmact_nil] THEN
   Q_TAC (NEW_TAC "z") `{x;y} UNION s1 UNION s2` THEN
   `[(x,y)] == [(x,z); (y,z); (x,z)]`
      by (SRW_TAC [][FUN_EQ_THM, permeq_def] THEN
@@ -526,34 +536,34 @@ val support_dwards_directed = store_thm(
                     (ONCE_REWRITE_CONV [GSYM swapstr_swapstr])) THEN
          SIMP_TAC bool_ss [swapstr_inverse] THEN
          SRW_TAC [][]) THEN
-  `pm [(x,y)] e = pm [(x,z); (y,z); (x,z)] e`
-     by METIS_TAC [is_perm_def] THEN
-  ` _ = pm [(x,z)] (pm [(y,z)] (pm [(x,z)] e))`
-     by METIS_TAC [is_perm_def, listTheory.APPEND] THEN
+  `pmact pm [(x,y)] e = pmact pm [(x,z); (y,z); (x,z)] e`
+     by METIS_TAC [pmact_permeq] THEN
+  ` _ = pmact pm [(x,z)] (pmact pm [(y,z)] (pmact pm [(x,z)] e))`
+     by METIS_TAC [pmact_decompose, listTheory.APPEND] THEN
   METIS_TAC [IN_INTER]);
 
 val supp_def = Define`
-  supp pm x = { (a:string) | INFINITE { (b:string) | pm [(a,b)] x ≠ x}}
+  supp pm x = { (a:string) | INFINITE { (b:string) | pmact pm [(a,b)] x ≠ x}}
 `;
 
 val supp_supports = store_thm(
   "supp_supports",
-  ``is_perm pm ==> support pm x (supp pm x)``,
-  ASM_SIMP_TAC (srw_ss()) [support_def, supp_def, is_perm_decompose,
-                           INFINITE_DEF] THEN STRIP_TAC THEN
+  ``support pm x (supp pm x)``,
+  ASM_SIMP_TAC (srw_ss()) [support_def, supp_def, pmact_decompose,
+                           INFINITE_DEF] THEN
   MAP_EVERY Q.X_GEN_TAC [`a`, `b`] THEN STRIP_TAC THEN
-  Q.ABBREV_TAC `aset = {b | ~(pm [(a,b)] x = x)}` THEN
-  Q.ABBREV_TAC `bset = {c | ~(pm [(b,c)] x = x)}` THEN
-  Cases_on `a = b` THEN1 SRW_TAC [][is_perm_id, is_perm_nil] THEN
+  Q.ABBREV_TAC `aset = {b | ~(pmact pm [(a,b)] x = x)}` THEN
+  Q.ABBREV_TAC `bset = {c | ~(pmact pm [(b,c)] x = x)}` THEN
+  Cases_on `a = b` THEN1 SRW_TAC [][pmact_id, pmact_nil] THEN
   `?c. ~(c IN aset) /\ ~(c IN bset) /\ ~(c = a) /\ ~(c = b)`
       by (Q.SPEC_THEN `{a;b} UNION aset UNION bset` MP_TAC NEW_def THEN
           SRW_TAC [][] THEN METIS_TAC []) THEN
-  `(pm [(a,c)] x = x) /\ (pm [(b,c)] x = x)`
+  `(pmact pm [(a,c)] x = x) /\ (pmact pm [(b,c)] x = x)`
       by FULL_SIMP_TAC (srw_ss()) [Abbr`aset`, Abbr`bset`] THEN
-  `pm ([(a,c)] ++ [(b,c)] ++ [(a,c)]) x = x`
-      by SRW_TAC [][is_perm_decompose] THEN
+  `pmact pm ([(a,c)] ++ [(b,c)] ++ [(a,c)]) x = x`
+      by SRW_TAC [][pmact_decompose] THEN
   Q_TAC SUFF_TAC `[(a,c)] ++ [(b,c)] ++ [(a,c)] == [(a,b)]`
-        THEN1 METIS_TAC [is_perm_def] THEN
+        THEN1 METIS_TAC [pmact_permeq] THEN
   SIMP_TAC (srw_ss()) [permeq_def, FUN_EQ_THM] THEN
   ONCE_REWRITE_TAC [GSYM swapstr_swapstr] THEN
   `(swapstr a c b = b) /\ (swapstr a c c = a)` by SRW_TAC [][swapstr_def] THEN
@@ -561,79 +571,78 @@ val supp_supports = store_thm(
 
 val supp_fresh = store_thm(
   "supp_fresh",
-  ``is_perm apm /\ x ∉ supp apm v /\ y ∉ supp apm v ⇒ (apm [(x,y)] v = v)``,
+  ``x ∉ supp apm v /\ y ∉ supp apm v ⇒ (pmact apm [(x,y)] v = v)``,
   METIS_TAC [support_def, supp_supports]);
 
 val setpm_postcompose = store_thm(
   "setpm_postcompose",
-  ``!P pm p. is_perm pm ==>
-             ({x | P (pm p x)} = setpm pm p⁻¹ {x | P x})``,
-  SRW_TAC [][EXTENSION, perm_IN]);
+  ``!P pm p. is_pmact pm ==> ({x | P (pm p x)} = setpm (mk_pmact pm) p⁻¹ {x | P x})``,
+  SRW_TAC [][EXTENSION, pmact_IN] >> metis_tac [pmact_bijections]);
 
 val perm_supp = store_thm(
   "perm_supp",
-  ``is_perm pm ==> (supp pm (pm p x) = setpm perm_of p (supp pm x))``,
-  SIMP_TAC (srw_ss()) [EXTENSION, pmact_IN, supp_def, is_perm_eql,
-                       INFINITE_DEF] THEN STRIP_TAC THEN
+  ``supp pm (pmact pm p x) = setpm (mk_pmact stringpm) p (supp pm x)``,
+  SIMP_TAC (srw_ss()) [EXTENSION, pmact_IN, supp_def, pmact_eql,
+                       INFINITE_DEF] THEN
   Q.X_GEN_TAC `a` THEN
-  `!e x y. pm (REVERSE p) (pm [(x,y)] e) =
-           pm [(perm_of (REVERSE p) x, perm_of (REVERSE p) y)]
-              (pm (REVERSE p) e)`
-      by METIS_TAC [is_perm_def, permeq_swap_ends, listTheory.APPEND] THEN
-  SRW_TAC [][is_perm_inverse] THEN
+  `!e x y. pmact pm (REVERSE p) (pmact pm [(x,y)] e) =
+           pmact pm [(perm_of (REVERSE p) x, perm_of (REVERSE p) y)]
+              (pmact pm (REVERSE p) e)`
+      by METIS_TAC [pmact_decompose, pmact_permeq, permeq_swap_ends, listTheory.APPEND] THEN
+  SRW_TAC [][pmact_inverse] THEN
   Q.MATCH_ABBREV_TAC `FINITE s1 = FINITE s2` THEN
-  `s1 = { b | (\s. ~(x = pm [(perm_of (REVERSE p) a, s)] x))
+  `s1 = { b | (\s. ~(x = pmact pm [(perm_of (REVERSE p) a, s)] x))
                 (perm_of (REVERSE p ) b)}`
      by SRW_TAC [][Abbr`s1`] THEN
-  ` _ = setpm perm_of (REVERSE (REVERSE p))
-              {b | (\s. ~(x = pm [(perm_of (REVERSE p) a, s)] x)) b}`
+  ` _ = setpm (mk_pmact perm_of) (REVERSE (REVERSE p))
+              {b | (\s. ~(x = pmact pm [(perm_of (REVERSE p) a, s)] x)) b}`
      by (MATCH_MP_TAC setpm_postcompose THEN SRW_TAC [][]) THEN
   Q.UNABBREV_TAC `s2` THEN SRW_TAC [][]);
 
 val supp_apart = store_thm(
   "supp_apart",
-  ``is_perm pm /\ a ∈ supp pm x /\ b ∉ supp pm x ⇒ pm [(a,b)] x ≠ x``,
+  ``a ∈ supp pm x /\ b ∉ supp pm x ⇒ pmact pm [(a,b)] x ≠ x``,
   STRIP_TAC THEN
   `a ≠ b` by METIS_TAC [] THEN
-  `b ∈ setpm perm_of [(a,b)] (supp pm x)`
+  `b ∈ setpm (mk_pmact stringpm) [(a,b)] (supp pm x)`
      by SRW_TAC[][pmact_IN, swapstr_def] THEN
-  `b ∈ supp pm (pm [(a,b)] x)`
-     by SRW_TAC [][perm_supp] THEN
-  `supp pm x ≠ supp pm (pm [(a,b)] x)` by METIS_TAC [] THEN
+  `b ∈ supp pm (pmact pm [(a,b)] x)`
+     by metis_tac [perm_supp] THEN
+  `supp pm x ≠ supp pm (pmact pm [(a,b)] x)` by METIS_TAC [] THEN
   METIS_TAC []);
 
 val supp_finite_or_UNIV = store_thm(
   "supp_finite_or_UNIV",
-  ``is_perm pm ∧ INFINITE (supp pm x) ⇒ (supp pm x = UNIV)``,
+  ``INFINITE (supp pm x) ⇒ (supp pm x = UNIV)``,
   STRIP_TAC THEN
   SPOSE_NOT_THEN (Q.X_CHOOSE_THEN `a` MP_TAC o
                   SIMP_RULE (srw_ss()) [EXTENSION]) THEN
   DISCH_THEN (fn th => ASSUME_TAC th THEN MP_TAC th THEN
                        SIMP_TAC (srw_ss()) [supp_def]) THEN
   STRIP_TAC THEN
-  `∃b. b ∉ {b | pm [(a,b)] x ≠ x} ∧ b ∈ supp pm x`
+  `∃b. b ∉ {b | pmact pm [(a,b)] x ≠ x} ∧ b ∈ supp pm x`
     by METIS_TAC [IN_INFINITE_NOT_FINITE] THEN
   FULL_SIMP_TAC (srw_ss()) [] THEN
-  METIS_TAC [supp_apart, is_perm_flip_args]);
+  METIS_TAC [supp_apart, pmact_flip_args]);
 
 val supp_absence_FINITE = store_thm(
   "supp_absence_FINITE",
-  ``is_perm pm ∧ a ∉ supp pm x ⇒ FINITE (supp pm x)``,
+  ``a ∉ supp pm x ⇒ FINITE (supp pm x)``,
   METIS_TAC [IN_UNIV, supp_finite_or_UNIV]);
 
 (* lemma3_4_i from Pitts & Gabbay - New Approach to Abstract Syntax *)
 val supp_smallest = store_thm(
   "supp_smallest",
-  ``is_perm pm /\ support pm x s /\ FINITE s ==> supp pm x SUBSET s``,
+  ``support pm x s /\ FINITE s ==> supp pm x SUBSET s``,
   REPEAT STRIP_TAC THEN
   REWRITE_TAC [SUBSET_DEF] THEN
   Q.X_GEN_TAC `a` THEN
   SPOSE_NOT_THEN STRIP_ASSUME_TAC THEN
-  `!b. ~(b IN s) ==> (pm [(a,b)] x = x)`
+  `!b. ~(b IN s) ==> (pmact pm [(a,b)] x = x)`
      by METIS_TAC [support_def] THEN
-  `{b | ~(pm [(a,b)] x = x)} SUBSET s`
+  `{b | ~(pmact pm [(a,b)] x = x)} SUBSET s`
      by (SRW_TAC [][SUBSET_DEF] THEN METIS_TAC []) THEN
-  `FINITE {b | ~(pm [(a,b)] x = x)}` by METIS_TAC [SUBSET_FINITE] THEN
+  `FINITE {b | ~(pmact pm [(a,b)] x = x)}` by METIS_TAC [SUBSET_FINITE] THEN
   FULL_SIMP_TAC (srw_ss()) [supp_def, INFINITE_DEF]);
 
 val notinsupp_I = store_thm(
@@ -652,7 +661,7 @@ val lemma = prove(
 
 val supp_unique = store_thm(
   "supp_unique",
-  ``is_perm pm /\ support pm x s /\ FINITE s /\
+  ``support pm x s /\ FINITE s /\
     (!s'. support pm x s' /\ FINITE s' ==> s SUBSET s') ==>
     (supp pm x = s)``,
   SRW_TAC [][] THEN
@@ -664,8 +673,8 @@ val supp_unique = store_thm(
 
 val supp_unique_apart = store_thm(
   "supp_unique_apart",
-  ``is_perm pm /\ support pm x s /\ FINITE s /\
-    (!a b. a IN s /\ ~(b IN s) ==> ~(pm [(a,b)] x = x)) ==>
+  ``support pm x s /\ FINITE s /\
+    (!a b. a IN s /\ ~(b IN s) ==> ~(pmact pm [(a,b)] x = x)) ==>
     (supp pm x = s)``,
   STRIP_TAC THEN MATCH_MP_TAC supp_unique THEN
   ASM_SIMP_TAC (srw_ss()) [] THEN SRW_TAC [][SUBSET_DEF] THEN
