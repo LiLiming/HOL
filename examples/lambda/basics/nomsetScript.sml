@@ -195,6 +195,11 @@ val pmact_nil = Store_thm(
   MP_TAC is_pmact_pmact THEN
   SRW_TAC [][is_pmact_def])
 
+val pmact_permeq = Store_thm(
+  "pmact_permeq",
+  ``p1 == p2 ==> (pmact pm p1 = pmact pm p2)``,
+  METIS_TAC [is_pmact_pmact,is_pmact_def]);
+
 val pmact_decompose = store_thm(
   "pmact_decompose",
   ``!pm x y a. pmact pm (x ++ y) a = pmact pm x (pmact pm y a)``,
@@ -206,7 +211,7 @@ val pmact_dups = Store_thm(
   ``!f h t a. pmact f (h::h::t) a = pmact f t a``,
   MP_TAC is_pmact_pmact THEN
   SRW_TAC [][is_pmact_def] THEN
-  Q_TAC SUFF_TAC `h::h::t == t` THEN1 METIS_TAC [is_pmact_def] THEN
+  Q_TAC SUFF_TAC `h::h::t == t` THEN1 METIS_TAC [pmact_permeq] THEN
   SRW_TAC [][permof_dups]);
 
 val pmact_id = Store_thm(
@@ -292,7 +297,7 @@ val fnpm_def = store_thm(
 ``fnpm dpm rpm = raw_fnpm dpm rpm``,
 srw_tac [][GSYM pmact_bijections] >>
 SRW_TAC [][is_pmact_def, FUN_EQ_THM, listTheory.REVERSE_APPEND, pmact_decompose] THEN
-METIS_TAC [permof_REVERSE_monotone,is_pmact_def,is_pmact_pmact]);
+METIS_TAC [permof_REVERSE_monotone,pmact_permeq]);
 
 (* sets *)
 val _ = overload_on ("setpm", ``λpm. pmact (mk_pmact (fnpm pm discretepm) : α set pmact)``);
@@ -365,32 +370,36 @@ srw_tac [][GSYM pmact_bijections] >>
 srw_tac [][is_pmact_def] THENL [
   Cases_on `x` THEN SRW_TAC [][],
   Cases_on `x` THEN SRW_TAC [][pmact_decompose],
-  FULL_SIMP_TAC (srw_ss()) [permeq_def, FUN_EQ_THM] THEN GEN_TAC THEN
+  srw_tac [][FUN_EQ_THM] >>
   Cases_on `x` THEN SRW_TAC [][] THEN
-  METIS_TAC [is_pmact_def,is_pmact_pmact,permeq_def]
+  AP_THM_TAC >> srw_tac [][]
 ]);
 val _ = export_rewrites ["optpm_def"]
 
 (* pairs *)
-val pairpm_def = Define`
-  pairpm (apm:'a pm) (bpm:'b pm) pi (a,b) = (apm pi a, bpm pi b)
+val raw_pairpm_def = Define`
+  raw_pairpm (apm:'a pmact) (bpm:'b pmact) pi (a,b) = (pmact apm pi a, pmact bpm pi b)
 `;
-val _ = export_rewrites ["pairpm_def"]
+val _ = export_rewrites ["raw_pairpm_def"]
 
-val pairpm_is_perm = Store_thm(
-  "pairpm_is_perm",
-  ``is_perm pm1 /\ is_perm pm2 ==> is_perm (pairpm pm1 pm2)``,
-  SIMP_TAC (srw_ss()) [is_perm_def, pairpm_def, pairTheory.FORALL_PROD,
-                       FUN_EQ_THM]);
+val _ = overload_on("pairpm",``λapm bpm. pmact (mk_pmact (raw_pairpm apm bpm))``);
+
+val pairpm_def = Store_thm(
+  "pairpm_def",
+  ``pairpm pm1 pm2 = raw_pairpm pm1 pm2``,
+  srw_tac [][GSYM pmact_bijections] >>
+  SIMP_TAC (srw_ss()) [is_pmact_def, pairTheory.FORALL_PROD,
+                       FUN_EQ_THM, pmact_decompose] >>
+  metis_tac [pmact_permeq]);
 
 val FST_pairpm = Store_thm(
   "FST_pairpm",
-  ``FST (pairpm pm1 pm2 pi v) = pm1 pi (FST v)``,
+  ``FST (pairpm pm1 pm2 pi v) = pmact pm1 pi (FST v)``,
   Cases_on `v` THEN SRW_TAC [][]);
 
 val SND_pairpm = Store_thm(
   "SND_pairpm",
-  ``SND (pairpm pm1 pm2 pi v) = pm2 pi (SND v)``,
+  ``SND (pairpm pm1 pm2 pi v) = pmact pm2 pi (SND v)``,
   Cases_on `v` THEN SRW_TAC [][]);
 
 (* sums *)
