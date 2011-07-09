@@ -1156,50 +1156,45 @@ val fresh_def = Define`fresh apm f = let z = NEW (supp (fn_pmact string_pmact ap
 val fresh_thm = store_thm(
   "fresh_thm",
   ``fcond apm f ==>
-    ∀a. a ∉ supp (fnpm perm_of apm) f ⇒ (f a = fresh apm f)``,
+    ∀a. a ∉ supp (fn_pmact string_pmact apm) f ⇒ (f a = fresh apm f)``,
   SIMP_TAC (srw_ss()) [fcond_def, fresh_def] THEN STRIP_TAC THEN
   Q.X_GEN_TAC `b` THEN
   SRW_TAC [][fcond_def, fresh_def] THEN
   Q.UNABBREV_TAC `z` THEN
   NEW_ELIM_TAC THEN SRW_TAC [][] THEN
-  Q_TAC SUFF_TAC `!c. ~(c IN supp (fnpm lswapstr apm) f) ==> (f c = f a)`
+  Q_TAC SUFF_TAC `!c. ~(c IN supp (fn_pmact string_pmact apm) f) ==> (f c = f a)`
         THEN1 SRW_TAC [][] THEN
   REPEAT STRIP_TAC THEN
   Cases_on `c = a` THEN1 SRW_TAC [][] THEN
-  `~(c IN supp lswapstr a)` by SRW_TAC [][] THEN
+  `~(c IN supp string_pmact a)` by SRW_TAC [][] THEN
   `~(c IN supp apm (f a))`
       by (`supp apm (f a) SUBSET
-             supp (fnpm lswapstr apm) f UNION supp lswapstr a`
+             supp (fn_pmact string_pmact apm) f UNION supp string_pmact a`
             by SRW_TAC [][supp_fnapp] THEN
           FULL_SIMP_TAC (srw_ss()) [SUBSET_DEF] THEN METIS_TAC []) THEN
-  `apm [(a,c)] (f a) = f a` by METIS_TAC [supp_supports, support_def] THEN
+  `pmact apm [(a,c)] (f a) = f a` by METIS_TAC [supp_supports, support_def] THEN
   POP_ASSUM (SUBST1_TAC o SYM) THEN
-  `apm [(a,c)] (f a) = fnpm lswapstr apm [(a,c)] f (lswapstr [(a,c)] a)`
+  `pmact apm [(a,c)] (f a) = fnpm string_pmact apm [(a,c)] f (lswapstr [(a,c)] a)`
      by SRW_TAC [][fnpm_def] THEN
   SRW_TAC [][supp_fresh])
 
 val fresh_equivariant = store_thm(
   "fresh_equivariant",
   ``fcond pm f ==>
-    (pm pi (fresh pm f) = fresh pm (fnpm perm_of pm pi f))``,
+    (pmact pm pi (fresh pm f) = fresh pm (fnpm string_pmact pm pi f))``,
   STRIP_TAC THEN
-  `is_perm pm` by METIS_TAC [fcond_def] THEN
-  `fcond pm (fnpm perm_of pm pi f)` by SRW_TAC [][fcond_equivariant] THEN
-  `∃b. b ∉ supp (fnpm perm_of pm) (fnpm perm_of pm pi f)`
-     by (Q.SPEC_THEN `supp (fnpm perm_of pm) (fnpm perm_of pm pi f)`
+  `fcond pm (fnpm string_pmact pm pi f)` by SRW_TAC [][fcond_equivariant] THEN
+  `∃b. b ∉ supp (fn_pmact string_pmact pm) (fnpm string_pmact pm pi f)`
+     by (Q.SPEC_THEN `supp (fn_pmact string_pmact pm) (fnpm string_pmact pm pi f)`
                      MP_TAC NEW_def THEN METIS_TAC [fcond_def]) THEN
-  `perm_of pi⁻¹ b ∉ supp (fnpm perm_of pm) f`
+  `perm_of pi⁻¹ b ∉ supp (fn_pmact string_pmact pm) f`
      by (POP_ASSUM MP_TAC THEN SRW_TAC [][perm_supp, pmact_IN]) THEN
-  `fresh pm (fnpm perm_of pm pi f) = fnpm perm_of pm pi f b`
+  `fresh pm (fnpm string_pmact pm pi f) = fnpm string_pmact pm pi f b`
      by METIS_TAC [fresh_thm] THEN
-  SRW_TAC [][fnpm_def, is_perm_injective, GSYM fresh_thm]);
+  SRW_TAC [][fnpm_def, pmact_injective, GSYM fresh_thm]);
 
-val _ = overload_on ("ssetpm", ``setpm lswapstr``)
-
-val ssetpm_inverse = Store_thm(
-  "ssetpm_inverse",
-  ``(ssetpm p (ssetpm p⁻¹ s) = s) ∧ (ssetpm p⁻¹ (ssetpm p s) = s)``,
-  SRW_TAC [][is_perm_inverse])
+val _ = overload_on ("sset_pmact",``set_pmact string_pmact``);
+val _ = overload_on ("ssetpm", ``pmact sset_pmact``)
 
 val cpmsupp_avoids = perm_of_unchanged
 (*
@@ -1210,11 +1205,11 @@ val cpmsupp_avoids = perm_of_unchanged
 *)
 val gen_avoidance_lemma = store_thm(
   "gen_avoidance_lemma",
-  ``is_perm pm ∧ FINITE atoms ∧ FINITE s  ⇒
+  ``FINITE atoms ∧ FINITE s  ⇒
     ∃π. (∀a. a ∈ atoms ⇒ lswapstr π a ∉ s) ∧
         ∀x y. MEM (x,y) π ⇒ x ∈ atoms ∧ y ∈ ssetpm π atoms``,
   Q_TAC SUFF_TAC
-    `is_perm pm ∧ FINITE s ⇒
+    `FINITE s ⇒
      ∀limit. FINITE limit ⇒
         ∀atoms. FINITE atoms ⇒
                 atoms ⊆ limit ⇒
