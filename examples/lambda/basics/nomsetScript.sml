@@ -307,10 +307,16 @@ val _ = overload_on ("fnpm", ``λdpm rpm. pmact (fn_pmact dpm rpm)``);
 
 val fnpm_def = store_thm(
 "fnpm_def",
-``fnpm dpm rpm = raw_fnpm dpm rpm``,
+``fnpm dpm rpm p f x = raw_fnpm dpm rpm p f x``,
+ntac 3 AP_THM_TAC >>
 srw_tac [][GSYM pmact_bijections] >>
 SRW_TAC [][is_pmact_def, FUN_EQ_THM, listTheory.REVERSE_APPEND, pmact_decompose] THEN
 METIS_TAC [permof_REVERSE_monotone,pmact_permeq]);
+
+val fnpm_raw = store_thm(
+"fnpm_raw",
+``fnpm dpm rpm = raw_fnpm dpm rpm``,
+srw_tac [][FUN_EQ_THM,fnpm_def])
 
 (* sets *)
 val _ = overload_on ("set_pmact", ``λpm. mk_pmact (fnpm pm discrete_pmact) : α set pmact``);
@@ -319,7 +325,7 @@ val _ = overload_on ("setpm", ``λpm. pmact (set_pmact pm)``);
 val pmact_IN = Store_thm(
   "pmact_IN",
   ``(x IN (setpm pm π s) = pmact pm π⁻¹ x IN s)``,
-  SRW_TAC [][fnpm_def, SPECIFICATION] THEN
+  SRW_TAC [][fnpm_raw, SPECIFICATION] THEN
   let open combinTheory in
     METIS_TAC [pmact_bijections, K_THM, I_THM, discrete_is_pmact]
   end);
@@ -938,68 +944,71 @@ val supp_fnapp = store_thm(
   METIS_TAC [supp_smallest, FINITE_UNION, supp_supports, support_fnapp]);
 
 open finite_mapTheory
-val fmpm_def = Define`
-  fmpm (dpm : 'd pm) (rpm : 'r pm) pi fmap =
-    rpm pi o_f fmap f_o dpm (REVERSE pi)
+val raw_fmpm_def = Define`
+  raw_fmpm (dpm : 'd pmact) (rpm : 'r pmact) pi fmap =
+    pmact rpm pi o_f fmap f_o pmact dpm (REVERSE pi)
 `;
+val _ = export_rewrites["raw_fmpm_def"];
+
+val _ = overload_on("fm_pmact",``λdpm rpm. mk_pmact (raw_fmpm dpm rpm)``);
+val _ = overload_on("fmpm",``λdpm rpm. pmact (fm_pmact dpm rpm)``);
 
 val lemma0 = prove(
-  ``is_perm pm ==> (pm pi x ∈ X = x ∈ setpm pm (REVERSE pi) X)``,
+  ``(pmact pm pi x ∈ X = x ∈ setpm pm (REVERSE pi) X)``,
   SRW_TAC [][pmact_IN])
 val lemma1 = prove(``{x | x ∈ X} = X``, SRW_TAC [][pred_setTheory.EXTENSION])
 val lemma = prove(
-  ``is_perm pm ==> FINITE { x | pm pi x ∈ FDOM f}``,
+  ``FINITE { x | pmact pm pi x ∈ FDOM f}``,
   SIMP_TAC bool_ss [lemma0, lemma1, pmact_FINITE,
                     finite_mapTheory.FDOM_FINITE]);
 
+val fmpm_def = store_thm(
+  "fmpm_def",
+  ``fmpm dpm rpm = raw_fmpm dpm rpm``,
+  srw_tac [][GSYM pmact_bijections] >>
+  SRW_TAC [][is_pmact_def] THENL [
+    `(!d. pmact dpm [] d = d) ∧ (!r. pmact rpm [] r = r)` by METIS_TAC [pmact_nil] THEN
+    SRW_TAC [][fmap_EXT, pred_setTheory.EXTENSION, FDOM_f_o, lemma,
+               FAPPLY_f_o, o_f_FAPPLY],
+
+    `(!d pi1 pi2. pmact dpm (pi1 ++ pi2) d = pmact dpm pi1 (pmact dpm pi2 d)) ∧
+     (!r pi1 pi2. pmact rpm (pi1 ++ pi2) r = pmact rpm pi1 (pmact rpm pi2 r))`
+      by METIS_TAC [pmact_decompose] THEN
+    SRW_TAC [][fmap_EXT, FDOM_f_o, lemma, o_f_FAPPLY,
+               listTheory.REVERSE_APPEND, FAPPLY_f_o],
+
+    `REVERSE p1 == REVERSE p2` by METIS_TAC [permof_REVERSE_monotone] THEN
+    `(pmact rpm p1 = pmact rpm p2) ∧ (pmact dpm (REVERSE p1) = pmact dpm (REVERSE p2))`
+       by METIS_TAC [pmact_permeq] THEN
+    SRW_TAC [][fmap_EXT, FUN_EQ_THM, FDOM_f_o, lemma]
+  ]);
+
 val fmpm_applied = store_thm(
   "fmpm_applied",
-  ``is_perm dpm ∧ dpm (REVERSE pi) x ∈ FDOM fm ==>
-    (fmpm dpm rpm pi fm ' x = rpm pi (fm ' (dpm (REVERSE pi) x)))``,
+  ``pmact dpm (REVERSE pi) x ∈ FDOM fm ==>
+    (fmpm dpm rpm pi fm ' x = pmact rpm pi (fm ' (pmact dpm (REVERSE pi) x)))``,
   SRW_TAC [][fmpm_def, FAPPLY_f_o, FDOM_f_o, lemma, o_f_FAPPLY]);
 
 val fmpm_FDOM = store_thm(
   "fmpm_FDOM",
-  ``is_perm dpm ==>
-     (x IN FDOM (fmpm dpm rpm pi fmap) = dpm (REVERSE pi) x IN FDOM fmap)``,
+  ``x IN FDOM (fmpm dpm rpm pi fmap) = pmact dpm (REVERSE pi) x IN FDOM fmap``,
   SRW_TAC [][fmpm_def, lemma, FDOM_f_o])
-
-val fmpm_is_perm = store_thm(
-  "fmpm_is_perm",
-  ``is_perm dpm /\ is_perm rpm ==> is_perm (fmpm dpm rpm)``,
-  STRIP_TAC THEN SRW_TAC [][is_perm_def] THENL [
-    `(!d. dpm [] d = d) ∧ (!r. rpm [] r = r)` by METIS_TAC [is_perm_def] THEN
-    SRW_TAC [][fmap_EXT, fmpm_def, pred_setTheory.EXTENSION, FDOM_f_o, lemma,
-               FAPPLY_f_o, o_f_FAPPLY],
-
-    `(!d pi1 pi2. dpm (pi1 ++ pi2) d = dpm pi1 (dpm pi2 d)) ∧
-     (!r pi1 pi2. rpm (pi1 ++ pi2) r = rpm pi1 (rpm pi2 r))`
-      by METIS_TAC [is_perm_def] THEN
-    SRW_TAC [][fmap_EXT, fmpm_def, FDOM_f_o, lemma, o_f_FAPPLY,
-               listTheory.REVERSE_APPEND, FAPPLY_f_o],
-
-    `REVERSE p1 == REVERSE p2` by METIS_TAC [permof_REVERSE_monotone] THEN
-    `(rpm p1 = rpm p2) ∧ (dpm (REVERSE p1) = dpm (REVERSE p2))`
-       by METIS_TAC [is_perm_def] THEN
-    SRW_TAC [][fmpm_def, fmap_EXT, FUN_EQ_THM, FDOM_f_o, lemma]
-  ]);
-val _ = export_rewrites ["fmpm_is_perm"]
 
 val supp_setpm = store_thm(
   "supp_setpm",
-  ``is_perm pm ∧ FINITE s ∧ (∀x. x ∈ s ⇒ FINITE (supp pm x)) ⇒
-    (supp (setpm pm) s = BIGUNION (IMAGE (supp pm) s))``,
+  ``FINITE s ∧ (∀x. x ∈ s ⇒ FINITE (supp pm x)) ⇒
+    (supp (set_pmact pm) s = BIGUNION (IMAGE (supp pm) s))``,
   STRIP_TAC THEN MATCH_MP_TAC supp_unique_apart THEN SRW_TAC [][] THENL [
     SRW_TAC [][support_def] THEN
     SRW_TAC [][pred_setTheory.EXTENSION] THEN
     Cases_on `x ∈ supp pm x'` THENL [
       `x' ∉ s` by METIS_TAC [] THEN
-      `y ∈ supp pm (pm [(x,y)] x')` by SRW_TAC [][perm_supp] THEN
+      `y ∈ supp pm (pmact pm [(x,y)] x')` by SRW_TAC [][perm_supp] THEN
       METIS_TAC [],
       ALL_TAC
     ] THEN Cases_on `y ∈ supp pm x'` THENL [
       `x' ∉ s` by METIS_TAC [] THEN
-      `x ∈ supp pm (pm [(x,y)] x')` by SRW_TAC [][perm_supp] THEN
+      `x ∈ supp pm (pmact pm [(x,y)] x')` by SRW_TAC [][perm_supp] THEN
       METIS_TAC [],
       ALL_TAC
     ] THEN SRW_TAC [][supp_fresh],
@@ -1009,13 +1018,13 @@ val supp_setpm = store_thm(
     SRW_TAC [][pred_setTheory.EXTENSION] THEN
     `∀x. b ∈ supp pm x ==> ¬(x ∈ s)` by METIS_TAC [] THEN
     `¬(b ∈ supp pm x)` by METIS_TAC [] THEN
-    `b ∈ supp pm (pm [(a,b)] x)` by SRW_TAC [][perm_supp] THEN
+    `b ∈ supp pm (pmact pm [(a,b)] x)` by SRW_TAC [][perm_supp] THEN
     METIS_TAC []
   ]);
 
 val supp_FINITE_strings = store_thm(
   "supp_FINITE_strings",
-  ``FINITE s ⇒ (supp (setpm lswapstr) s = s)``,
+  ``FINITE s ⇒ (supp (set_pmact string_pmact) s = s)``,
   SRW_TAC [][supp_setpm, pred_setTheory.EXTENSION] THEN EQ_TAC THEN
   STRIP_TAC THENL [
     METIS_TAC [],
@@ -1029,13 +1038,12 @@ val rwt = prove(
 
 val fmap_supp = store_thm(
   "fmap_supp",
-  ``is_perm dpm ∧ is_perm rpm ∧
-    (∀d. FINITE (supp dpm d)) ∧ (∀r. FINITE (supp rpm r)) ==>
-    (supp (fmpm dpm rpm) fmap =
-        supp (setpm dpm) (FDOM fmap) ∪
-        supp (setpm rpm) (FRANGE fmap))``,
+  ``(∀d. FINITE (supp dpm d)) ∧ (∀r. FINITE (supp rpm r)) ==>
+    (supp (fm_pmact dpm rpm) fmap =
+        supp (set_pmact dpm) (FDOM fmap) ∪
+        supp (set_pmact rpm) (FRANGE fmap))``,
   STRIP_TAC THEN MATCH_MP_TAC supp_unique_apart THEN
-  SRW_TAC [][FINITE_FRANGE, fmpm_is_perm, supp_setpm, rwt,
+  SRW_TAC [][FINITE_FRANGE, supp_setpm, rwt,
              GSYM RIGHT_FORALL_IMP_THM]
   THENL [
     SRW_TAC [][support_def, fmap_EXT, rwt, GSYM RIGHT_FORALL_IMP_THM,
@@ -1043,14 +1051,14 @@ val fmap_supp = store_thm(
     THENL [
       SRW_TAC [][pred_setTheory.EXTENSION, fmpm_FDOM] THEN
       Cases_on `x ∈ supp dpm x'` THEN1
-        (`y ∈ supp dpm (dpm [(x,y)] x')` by SRW_TAC [][perm_supp] THEN
+        (`y ∈ supp dpm (pmact dpm [(x,y)] x')` by SRW_TAC [][perm_supp] THEN
          METIS_TAC []) THEN
       Cases_on `y ∈ supp dpm x'` THEN1
-        (`x ∈ supp dpm (dpm [(x,y)] x')` by SRW_TAC [][perm_supp] THEN
+        (`x ∈ supp dpm (pmact dpm [(x,y)] x')` by SRW_TAC [][perm_supp] THEN
          METIS_TAC []) THEN
       METIS_TAC [supp_fresh],
       SRW_TAC [][fmpm_def, FAPPLY_f_o, lemma, FDOM_f_o, o_f_FAPPLY] THEN
-      `¬(x ∈ supp dpm (dpm [(x,y)] x')) ∧ ¬(y ∈ supp dpm (dpm [(x,y)] x'))`
+      `¬(x ∈ supp dpm (pmact dpm [(x,y)] x')) ∧ ¬(y ∈ supp dpm (pmact dpm [(x,y)] x'))`
           by METIS_TAC [] THEN
       NTAC 2 (POP_ASSUM MP_TAC) THEN
       SRW_TAC [][perm_supp] THEN
@@ -1067,7 +1075,7 @@ val fmap_supp = store_thm(
     `¬(b ∈ supp dpm x)` by METIS_TAC [] THEN
     SRW_TAC [][fmap_EXT, fmpm_FDOM] THEN DISJ1_TAC THEN
     SRW_TAC [][pred_setTheory.EXTENSION, fmpm_FDOM] THEN
-    `b ∈ supp dpm (dpm [(a,b)] x)` by SRW_TAC [][perm_supp] THEN
+    `b ∈ supp dpm (pmact dpm [(a,b)] x)` by SRW_TAC [][perm_supp] THEN
     METIS_TAC [],
 
     `¬(b ∈ supp rpm x)` by METIS_TAC [] THEN
@@ -1075,7 +1083,7 @@ val fmap_supp = store_thm(
         by (FULL_SIMP_TAC (srw_ss()) [FRANGE_DEF] THEN METIS_TAC []) THEN
     `¬(b ∈ supp dpm y)` by METIS_TAC [] THEN
     Cases_on `a ∈ supp dpm y` THENL [
-      `b ∈ supp dpm (dpm [(a,b)] y)` by SRW_TAC [][perm_supp] THEN
+      `b ∈ supp dpm (pmact dpm [(a,b)] y)` by SRW_TAC [][perm_supp] THEN
       SRW_TAC [][fmap_EXT, fmpm_FDOM, pred_setTheory.EXTENSION] THEN
       METIS_TAC [],
       ALL_TAC
@@ -1088,58 +1096,60 @@ val fmap_supp = store_thm(
 
 val FAPPLY_eqv_lswapstr = store_thm(
   "FAPPLY_eqv_lswapstr",
-  ``is_perm rpm ∧ d ∈ FDOM fm ==>
-    (rpm pi (fm ' d) = fmpm lswapstr rpm pi fm ' (lswapstr pi d))``,
-  SRW_TAC [][fmpm_def, FAPPLY_f_o, FDOM_f_o, lemma, o_f_FAPPLY]);
-  (* feels as if it should be possible to prove this for the case where d is
-     not in the domain *)
+  ``d ∈ FDOM fm ⇒ (pmact rpm pi (fm ' d) = fmpm string_pmact rpm pi fm ' (lswapstr pi d))``,
+  srw_tac [][fmpm_def] >>
+  qmatch_abbrev_tac `z = (f f_o g) ' x` >>
+  `FINITE {x | g x ∈ FDOM f}` by metis_tac [lemma,stringpm_def] >>
+  `FDOM (f f_o g) = {x | g x ∈ FDOM f}` by metis_tac [FDOM_f_o] >>
+  `x ∈ FDOM (f f_o g)` by ( unabbrev_all_tac >> srw_tac [][] ) >>
+  unabbrev_all_tac >>
+  srw_tac [][FAPPLY_f_o]);
 
 val fmpm_FEMPTY = store_thm(
   "fmpm_FEMPTY",
-  ``is_perm dpm ==> (fmpm dpm rpm pi FEMPTY = FEMPTY)``,
+  ``fmpm dpm rpm pi FEMPTY = FEMPTY``,
   SRW_TAC [][fmap_EXT, fmpm_applied, fmpm_FDOM, pred_setTheory.EXTENSION]);
 val _ = export_rewrites ["fmpm_FEMPTY"]
 
 val fmpm_FUPDATE = store_thm(
   "fmpm_FUPDATE",
-  ``is_perm dpm ∧ is_perm rpm ==>
-    (fmpm dpm rpm pi (fm |+ (k,v)) =
-       fmpm dpm rpm pi fm |+ (dpm pi k, rpm pi v))``,
+  ``fmpm dpm rpm pi (fm |+ (k,v)) =
+    fmpm dpm rpm pi fm |+ (pmact dpm pi k, pmact rpm pi v)``,
   SRW_TAC [][fmap_EXT, fmpm_applied, fmpm_FDOM, pred_setTheory.EXTENSION]
   THENL [
-    SRW_TAC [][is_perm_eql],
-    SRW_TAC [][is_perm_inverse],
-    Cases_on `k = dpm (REVERSE pi) x` THENL [
-      SRW_TAC [][is_perm_inverse],
+    SRW_TAC [][pmact_eql],
+    SRW_TAC [][pmact_inverse],
+    Cases_on `k = pmact dpm (REVERSE pi) x` THENL [
+      SRW_TAC [][pmact_inverse],
       SRW_TAC [][FAPPLY_FUPDATE_THM, fmpm_applied] THEN
-      METIS_TAC [is_perm_inverse]
+      METIS_TAC [pmact_inverse]
     ]
   ]);
 val _ = export_rewrites ["fmpm_FUPDATE"]
 
 val fmpm_DOMSUB = store_thm(
   "fmpm_DOMSUB",
-  ``is_perm dpm ⇒ (fmpm dpm rpm pi (fm \\ k) = fmpm dpm rpm pi fm \\ (dpm pi k))``,
+  ``fmpm dpm rpm pi (fm \\ k) = fmpm dpm rpm pi fm \\ (pmact dpm pi k)``,
   SRW_TAC [][fmap_EXT,fmpm_FDOM,EXTENSION] THEN1
-    METIS_TAC [is_perm_eql] THEN
+    METIS_TAC [pmact_eql] THEN
   SRW_TAC [][fmpm_applied,DOMSUB_FAPPLY_THM] THEN
-  POP_ASSUM MP_TAC THEN SRW_TAC [][is_perm_inverse] )
+  POP_ASSUM MP_TAC THEN SRW_TAC [][pmact_inverse] )
 val _ = export_rewrites ["fmpm_DOMSUB"];
 
 val fcond_def = Define`
-  fcond pm f = is_perm pm ∧ FINITE (supp (fnpm perm_of pm) f) ∧
-               (∃a. a ∉ supp (fnpm perm_of pm) f /\ a ∉ supp pm (f a))
+  fcond pm f = FINITE (supp (fn_pmact string_pmact pm) f) ∧
+               (∃a. a ∉ supp (fn_pmact string_pmact pm) f /\ a ∉ supp pm (f a))
 `;
 
 val fcond_equivariant = Store_thm(
   "fcond_equivariant",
-  ``fcond pm (fnpm perm_of pm pi f) = fcond pm f``,
+  ``fcond pm (fnpm string_pmact pm pi f) = fcond pm f``,
   SIMP_TAC (srw_ss() ++ CONJ_ss) [fcond_def, EQ_IMP_THM, perm_supp, fnpm_def,
                                   pmact_IN, pmact_FINITE] THEN
-  METIS_TAC [is_perm_inverse, perm_of_is_perm]);
+  METIS_TAC [pmact_inverse, stringpm_def]);
 
 
-val fresh_def = Define`fresh apm f = let z = NEW (supp (fnpm lswapstr apm) f)
+val fresh_def = Define`fresh apm f = let z = NEW (supp (fn_pmact string_pmact apm) f)
                                      in
                                        f z`
 
