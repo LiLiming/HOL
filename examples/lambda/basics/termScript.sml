@@ -2,11 +2,8 @@ open HolKernel boolLib Parse bossLib generic_termsTheory
 
 open boolSimps
 
-open nomsetTheory
-open pred_setTheory
-open lcsymtacs
-open binderLib
-open nomdatatype
+open nomsetTheory pred_setTheory lcsymtacs binderLib nomdatatype
+
 val _ = new_theory "term";
 
 val _ = set_fixity "=" (Infix(NONASSOC, 450))
@@ -16,117 +13,120 @@ fun Store_thm(nm,t,tac) = store_thm(nm,t,tac) before export_rewrites [nm]
 
 val tyname = "term"
 
-val vp = ``(λn u:unit. n = 0)``
-val lp = ``(λn (d:unit + unit) tns uns.
-               (n = 0) ∧ ISL d ∧ (tns = []) ∧ (uns = [0;0]) ∨
-               (n = 0) ∧ ISR d ∧ (tns = [0]) ∧ (uns = []))``
+val sort = "term_atom";
+val sort_t = stringSyntax.fromMLstring sort;
+val existence = prove(``?a. (λa. atom_sort a = ^sort_t) a``, qexists_tac `Atom ^sort_t ARB` >> srw_tac [][]);
+val tyax = new_type_definition (sort, existence);
+val term_atom_bijections = define_new_type_bijections { tyax = tyax,
+  ABS = "to_"^sort, REP = "from_"^sort, name = sort^"_bijections" }
+val term_atom_sort = Store_thm(
+"term_atom_sort",
+``atom_sort (from_term_atom a) = ^sort_t``,
+metis_tac [term_atom_bijections])
+
+val vp = ``(λn s u:unit. (n = 0) ∧ (s = ^sort_t))``
+val lp = ``(λn s (d:unit + unit) tns uns.
+               (n = 0) ∧ (s = ^sort_t) ∧ ISL d ∧ (tns = []) ∧ (uns = [0;0]) ∨
+               (n = 0) ∧ (s = ^sort_t) ∧ ISR d ∧ (tns = [0]) ∧ (uns = []))``
 
 val {term_ABS_pseudo11, term_REP_11, genind_term_REP, genind_exists,
      termP, absrep_id, repabs_pseudo_id, term_REP_t, term_ABS_t, newty, ...} =
-    new_type_step1 tyname {vp=vp, lp = lp}
+    new_type_step1 tyname {vp=vp, lp=lp,
+      existence=prove(``?x. genind ^vp ^lp 0 x``,
+                      qexists_tac `GVAR (Atom ^sort_t ARB) ARB` >>
+                      srw_tac [][genind_GVAR])}
 val [gvar,glam] = genind_rules |> SPEC_ALL |> CONJUNCTS
 
-fun defined_const th = th |> concl |> strip_forall |> #2 |> lhs |> repeat rator
-val LAM_t = mk_var("LAM", ``:string -> ^newty -> ^newty``)
+val LAM_t = mk_var("LAM", ``:term_atom -> ^newty -> ^newty``)
 val LAM_def = new_definition(
   "LAM_def",
-  ``^LAM_t v t = ^term_ABS_t (GLAM v (INR ()) [^term_REP_t t] [])``)
+  ``^LAM_t v t = ^term_ABS_t (GLAM (from_term_atom v) (INR ()) [^term_REP_t t] [])``)
 val LAM_termP = prove(
   mk_comb(termP, LAM_def |> SPEC_ALL |> concl |> rhs |> rand),
   match_mp_tac glam >> srw_tac [][genind_term_REP]);
 val LAM_t = defined_const LAM_def
 
+val LAM_def'' = prove(
+  ``(atom_sort v = ^sort_t) ⇒ (^term_ABS_t (GLAM v (INR ()) [^term_REP_t t] []) = ^LAM_t (to_term_atom v) t)``,
+  metis_tac [LAM_def,term_atom_bijections])
 
 val APP_t = mk_var("APP", ``:^newty -> ^newty -> ^newty``)
 val APP_def = new_definition(
   "APP_def",
   ``^APP_t t1 t2 =
-       ^term_ABS_t (GLAM ARB (INL ()) [] [^term_REP_t t1; ^term_REP_t t2])``);
+       ^term_ABS_t (GLAM (from_term_atom ARB) (INL ()) [] [^term_REP_t t1; ^term_REP_t t2])``);
 val APP_termP = prove(
-  ``^termP (GLAM x (INL ()) [] [^term_REP_t t1; ^term_REP_t t2])``,
+  ``^termP (GLAM (from_term_atom x) (INL ()) [] [^term_REP_t t1; ^term_REP_t t2])``,
   match_mp_tac glam >> srw_tac [][genind_term_REP])
 val APP_t = defined_const APP_def
 
 val APP_def' = prove(
-  ``^term_ABS_t (GLAM v (INL ()) [] [^term_REP_t t1; ^term_REP_t t2]) = ^APP_t t1 t2``,
+  ``^term_ABS_t (GLAM (from_term_atom v) (INL ()) [] [^term_REP_t t1; ^term_REP_t t2]) = ^APP_t t1 t2``,
   srw_tac [][APP_def, GLAM_NIL_EQ, term_ABS_pseudo11, APP_termP]);
 
-val VAR_t = mk_var("VAR", ``:string -> ^newty``)
+val APP_def'' = prove(
+  ``(atom_sort v = ^sort_t) ⇒ (^term_ABS_t (GLAM v (INL ()) [] [^term_REP_t t1; ^term_REP_t t2]) = ^APP_t t1 t2)``,
+  metis_tac [APP_def',term_atom_bijections])
+
+val VAR_t = mk_var("VAR", ``:term_atom -> ^newty``)
 val VAR_def = new_definition(
   "VAR_def",
-  ``^VAR_t s = ^term_ABS_t (GVAR s ())``);
+  ``^VAR_t s = ^term_ABS_t (GVAR (from_term_atom s) ())``);
 val VAR_termP = prove(
   mk_comb(termP, VAR_def |> SPEC_ALL |> concl |> rhs |> rand),
   srw_tac [][genind_rules]);
 val VAR_t = defined_const VAR_def
 
-val tpm_name = "tpm"
-val t = mk_var("t", newty)
-val tpm_t = mk_var(tpm_name, ``:^newty pm``)
-val tpm_def = new_definition(
-  tpm_name ^ "_def",
-  ``^tpm_t pi ^t = ^term_ABS_t (gtpm pi (^term_REP_t ^t))``);
-val tpm_t = tpm_def |> SPEC_ALL |> concl |> lhs |> repeat rator
+val VAR_def'' = prove(
+  ``(atom_sort v = ^sort_t) ⇒ (^term_ABS_t (GVAR v ()) = ^VAR_t (to_term_atom v))``,
+  metis_tac [VAR_def,term_atom_bijections]);
 
-val term_REP_tpm =
-    tpm_def |> SPEC_ALL |> AP_TERM term_REP_t
-             |> SIMP_RULE bool_ss [repabs_pseudo_id, genind_gtpm_eqn, genind_term_REP]
+val cons_info =
+    [{con_termP = VAR_termP, con_def = VAR_def},
+     {con_termP = APP_termP, con_def = SYM APP_def'},
+     {con_termP = LAM_termP, con_def = LAM_def}]
 
-val tpm_is_perm = Store_thm(
-  tpm_name ^ "_is_perm",
-  ``is_perm ^tpm_t``,
-  srw_tac [][is_perm_def, FUN_EQ_THM, tpm_def, gtpm_NIL,
-             GSYM gtpm_compose, repabs_pseudo_id, absrep_id]
-  >- srw_tac [][GSYM term_REP_tpm, absrep_id] >>
-  AP_TERM_TAC >>
-  (is_perm_def |> ISPEC ``generic_terms$gtpm`` |> C EQ_MP gtpm_is_perm
-               |> CONJUNCTS |> last |> REWRITE_RULE [FUN_EQ_THM]
-               |> MATCH_MP_TAC) >>
-  POP_ASSUM ACCEPT_TAC)
-
-fun tpm_clause contermP con_def =
-  con_def |> SPEC_ALL
-          |> Q.AP_TERM `^tpm_t pi`
-          |> CONV_RULE (RAND_CONV (SIMP_CONV bool_ss [tpm_def]))
-          |> SIMP_RULE std_ss [repabs_pseudo_id, contermP, gtpm_thm, listTheory.MAP,
-                               listpm_def]
-          |> SIMP_RULE bool_ss [GSYM con_def, GSYM term_REP_tpm]
-          |> GEN_ALL
-
-val tpm_thm = Save_thm(
-  tpm_name ^ "_thm",
-  LIST_CONJ [tpm_clause VAR_termP VAR_def,
-             tpm_clause APP_termP (GSYM APP_def'),
-             tpm_clause LAM_termP LAM_def]);
+val tpm_name_pfx = "t"
+val {tpm_thm, term_REP_tpm, t_pmact_t, tpm_t} =
+    define_permutation {name_pfx = "t", name = tyname,
+                        term_REP_t = term_REP_t,
+                        term_ABS_t = term_ABS_t, absrep_id = absrep_id,
+                        repabs_pseudo_id = repabs_pseudo_id,
+                        cons_info = cons_info, newty = newty,
+                        genind_term_REP = genind_term_REP}
 
 (* support *)
 val term_REP_eqv = prove(
-   ``support (fnpm ^tpm_t gtpm) ^term_REP_t {}`` ,
-   srw_tac [][support_def, fnpm_def, FUN_EQ_THM, term_REP_tpm, gtpm_sing_inv]);
+   ``support (fn_pmact ^t_pmact_t gt_pmact) ^term_REP_t {}`` ,
+   srw_tac [][support_def, fnpm_def, FUN_EQ_THM, term_REP_tpm, pmact_sing_inv]);
 
 val supp_term_REP = prove(
-  ``supp (fnpm ^tpm_t gtpm) ^term_REP_t = {}``,
+  ``supp (fn_pmact ^t_pmact_t gt_pmact) ^term_REP_t = {}``,
   REWRITE_TAC [GSYM SUBSET_EMPTY] >> MATCH_MP_TAC (GEN_ALL supp_smallest) >>
-  srw_tac [][gtpm_is_perm, tpm_is_perm, term_REP_eqv])
+  srw_tac [][term_REP_eqv])
 
+val tpm_def' =
+    term_REP_tpm |> AP_TERM term_ABS_t |> PURE_REWRITE_RULE [absrep_id]
+
+val t = mk_var("t", newty)
 val supptpm_support = prove(
-  ``support ^tpm_t ^t (supp gtpm (^term_REP_t ^t))``,
-  srw_tac [][support_def, tpm_def, gtpm_fresh, absrep_id]);
+  ``support ^t_pmact_t ^t (supp gt_pmact (^term_REP_t ^t))``,
+  srw_tac [][support_def, tpm_def', supp_fresh, absrep_id]);
 
 val supptpm_apart = prove(
-  ``x ∈ supp gtpm (^term_REP_t ^t) ∧ y ∉ supp gtpm (^term_REP_t ^t) ⇒
+  ``x ∈ supp gt_pmact (^term_REP_t ^t) ∧ y ∉ supp gt_pmact (^term_REP_t ^t) ∧
+    (atom_sort x = atom_sort y) ⇒
     ^tpm_t [(x,y)] ^t ≠ ^t``,
-  srw_tac [][tpm_def]>>
+  srw_tac [][tpm_def']>>
   DISCH_THEN (MP_TAC o AP_TERM term_REP_t) >>
-  srw_tac [][repabs_pseudo_id, genind_gtpm_eqn, genind_term_REP, supp_apart,
-             gtpm_is_perm]);
+  srw_tac [][repabs_pseudo_id, genind_gtpm_eqn, genind_term_REP, supp_apart]);
 
 val supp_tpm = prove(
-  ``supp ^tpm_t ^t = supp gtpm (^term_REP_t ^t)``,
+  ``supp ^t_pmact_t ^t = supp gt_pmact (^term_REP_t ^t)``,
   match_mp_tac (GEN_ALL supp_unique_apart) >>
-  srw_tac [][supptpm_support, supptpm_apart, FINITE_GFV, tpm_is_perm])
+  srw_tac [][supptpm_support, supptpm_apart, FINITE_GFV])
 
-val _ = overload_on ("FV", ``supp tpm``)
+val _ = overload_on ("FV", ``supp ^t_pmact_t``)
 
 val FINITE_FV = store_thm(
   "FINITE_FV",
@@ -134,21 +134,19 @@ val FINITE_FV = store_thm(
   srw_tac [][supp_tpm, FINITE_GFV]);
 val _ = export_rewrites ["FINITE_FV"]
 
-fun supp_clause contermP con_def = let
-  val t = mk_comb(``supp ^tpm_t``, lhand (concl (SPEC_ALL con_def)))
+fun supp_clause {con_termP, con_def} = let
+  val t = mk_comb(``supp ^t_pmact_t``, lhand (concl (SPEC_ALL con_def)))
 in
-  t |> SIMP_CONV (srw_ss()) [supp_tpm, con_def, repabs_pseudo_id, contermP,
-                             GFV_thm]
-    |> SIMP_RULE (srw_ss()) [GSYM supp_tpm]
+  t |> REWRITE_CONV [supp_tpm, con_def, MATCH_MP repabs_pseudo_id con_termP,
+                     GFV_thm]
+    |> REWRITE_RULE [supp_listpm, EMPTY_DELETE, UNION_EMPTY]
+    |> REWRITE_RULE [GSYM supp_tpm]
     |> GEN_ALL
 end
 
 val FV_thm = Save_thm(
   "FV_thm",
-  LIST_CONJ
-    [supp_clause VAR_termP VAR_def,
-     supp_clause APP_termP APP_def,
-     supp_clause LAM_termP LAM_def]);
+  LIST_CONJ (map supp_clause cons_info))
 
 
 
@@ -178,10 +176,10 @@ val term_ind =
                       IN_UNION, NOT_IN_EMPTY, oneTheory.FORALL_ONE,
                       genind_exists, LIST_REL_CONS1, LIST_REL_NIL]
         |> Q.INST [`Q` |-> `λt. P (term_ABS t)`]
-        |> SIMP_RULE std_ss [GSYM LAM_def, APP_def', GSYM VAR_def, absrep_id]
+        |> SIMP_RULE std_ss [LAM_def'', APP_def'', VAR_def'', absrep_id]
         |> SIMP_RULE (srw_ss()) [GSYM supp_tpm]
         |> elim_unnecessary_atoms {finite_fv = FINITE_FV}
-                                  [ASSUME ``!x:'c. FINITE (fv x:string set)``]
+                                  [ASSUME ``!x:'c. FINITE (fv x:atom set)``]
         |> SPEC_ALL |> UNDISCH
         |> genit |> DISCH_ALL |> Q.GEN `fv` |> Q.GEN `P`
 
@@ -198,8 +196,15 @@ val nc_INDUCTION2 = store_thm(
       (∀t u. P t ∧ P u ==> P (APP t u)) ∧
       (∀y u. y ∉ X ∧ P u ==> P (LAM y u)) ∧ FINITE X ==>
       ∀u. P u``,
-  metis_tac [mkX_ind term_ind]);
+  srw_tac [][] >>
+  match_mp_tac (mkX_ind term_ind) >>
+  qexists_tac `IMAGE from_term_atom X` >> srw_tac [][] >>
+  metis_tac [term_atom_bijections]);
 
+val from_term_atom_11 = Store_thm(
+"from_term_atom_11",
+``(from_term_atom a1 = from_term_atom a2) = (a1 = a2)``,
+metis_tac [term_atom_bijections]);
 
 val LAM_eq_thm = save_thm(
   "LAM_eq_thm",
@@ -207,7 +212,7 @@ val LAM_eq_thm = save_thm(
      |> SIMP_CONV (srw_ss()) [LAM_def, LAM_termP, term_ABS_pseudo11,
                               GLAM_eq_thm, term_REP_11, GSYM term_REP_tpm,
                               GSYM supp_tpm]
-     |> GENL [``u:string``, ``v:string``, ``t1:term``, ``t2:term``]);
+     |> GENL [``u:term_atom``, ``v:term_atom``, ``t1:term``, ``t2:term``]);
 
 
 
@@ -216,12 +221,12 @@ val (_, repty) = dom_rng (type_of term_REP_t)
 val repty' = ty_antiq repty
 
 val tlf =
-  ``λ(v:string) (u:unit + unit) (ds1:(ρ -> α) list) (ds2:(ρ -> α)  list)
+  ``λ(v:atom) (u:unit + unit) (ds1:(ρ -> α) list) (ds2:(ρ -> α)  list)
                                 (ts1:^repty' list) (ts2:^repty' list) (p:ρ).
        if ISR u then tlf (HD ds1) v (term_ABS (HD ts1)) p: α
        else taf (HD ds2) (HD (TL ds2)) (term_ABS (HD ts2))
                 (term_ABS (HD (TL ts2))) p: α``
-val tvf = ``λ(s:string) (u:unit) (p:ρ). tvf s p : α``
+val tvf = ``λ(s:atom) (u:unit) (p:ρ). tvf s p : α``
 
 val LENGTH_NIL' =
     CONV_RULE (BINDER_CONV (LAND_CONV (REWR_CONV EQ_SYM_EQ)))
@@ -240,8 +245,10 @@ val termP_elim = prove(
   srw_tac [][repabs_pseudo_id]);
 
 val termP_removal =
-    nomdatatype.termP_removal {elimth = termP_elim, absrep_id = absrep_id,
-                               tpm_def = tpm_def, termP = termP, repty = repty}
+    nomdatatype.termP_removal {
+      elimth = termP_elim, absrep_id = absrep_id,
+      tpm_def = AP_TERM term_ABS_t term_REP_tpm |> REWRITE_RULE [absrep_id],
+      termP = termP, repty = repty}
 
 val termP0 = prove(
   ``genind ^vp ^lp n t <=> ^termP t ∧ (n = 0)``,
@@ -251,10 +258,6 @@ val termP0 = prove(
   Q.ISPEC_THEN `t` STRUCT_CASES_TAC gterm_cases >>
   srw_tac [][genind_GVAR, genind_GLAM_eqn]);
 
-val cons_info =
-    [{con_termP = VAR_termP, con_def = VAR_def},
-     {con_termP = APP_termP, con_def = SYM APP_def'},
-     {con_termP = LAM_termP, con_def = LAM_def}]
 
 
 val parameter_tm_recursion = save_thm(
@@ -285,7 +288,7 @@ val parameter_tm_recursion = save_thm(
                           cons_info = cons_info}
       |> DISCH_ALL
       |> elim_unnecessary_atoms {finite_fv = FINITE_FV}
-                                [ASSUME ``FINITE (A:string set)``,
+                                [ASSUME ``FINITE (A:atom set)``,
                                  ASSUME ``!p:ρ. FINITE (supp ppm p)``]
       |> UNDISCH_ALL |> DISCH_ALL
       |> REWRITE_RULE [AND_IMP_INTRO]
@@ -317,7 +320,7 @@ val tm_recursion = save_thm(
   "tm_recursion",
   parameter_tm_recursion
       |> Q.INST_TYPE [`:ρ` |-> `:unit`]
-      |> Q.INST [`ppm` |-> `K I`, `vr` |-> `λs u. vru s`,
+      |> Q.INST [`ppm` |-> `discrete_pmact`, `vr` |-> `λs u. vru s`,
                  `ap` |-> `λr1 r2 t1 t2 u. apu (r1()) (r2()) t1 t2`,
                  `lm` |-> `λr v t u. lmu (r()) v t`]
       |> SIMP_RULE (srw_ss()) [FORALL_ONE, FORALL_ONE_FN, EXISTS_ONE_FN,
@@ -330,19 +333,9 @@ val tm_recursion_nosideset = save_thm(
   tm_recursion |> Q.INST [`A` |-> `{}`]
                |> REWRITE_RULE [NOT_IN_EMPTY, FINITE_EMPTY]);
 
-(* instances of is_perm ; can be done away with when perm actions are a type *)
-val tpm_sing_to_back = save_thm(
-  "tpm_sing_to_back",
-  MATCH_MP is_perm_sing_to_back tpm_is_perm)
-val tpm_NIL = Save_thm("tpm_NIL", MATCH_MP is_perm_nil tpm_is_perm)
-val tpm_id_front = Save_thm("tpm_id_front", MATCH_MP is_perm_id tpm_is_perm)
-val tpm_inverse = Save_thm("tpm_inverse", MATCH_MP is_perm_inverse tpm_is_perm)
-val tpm_sing_inv = Save_thm("tpm_sing_inv",
-                            MATCH_MP is_perm_sing_inv tpm_is_perm)
 val FV_tpm = Save_thm("FV_tpm",
                       ``x ∈ FV (tpm p t)``
-                      |> REWRITE_CONV [MATCH_MP perm_supp tpm_is_perm,
-                                       MATCH_MP perm_IN perm_of_is_perm]
+                      |> REWRITE_CONV [perm_supp,pmact_IN]
                       |> GEN_ALL);
 
 val _ = set_mapped_fixity { term_name = "APP", tok = "@@",
@@ -370,33 +363,20 @@ val simple_induction = store_thm(
         !M. P M``,
   METIS_TAC [nc_INDUCTION2, FINITE_EMPTY, NOT_IN_EMPTY])
 
-val tpm_flip_args =
-    save_thm("tpm_flip_args", MATCH_MP is_perm_flip_args tpm_is_perm)
-
-val tpm_APPEND = store_thm(
-  "tpm_APPEND",
-  ``tpm (p1 ++ p2) t = tpm p1 (tpm p2 t)``,
-  METIS_TAC [is_perm_def, tpm_is_perm]);
-
-(* more minor results about tpm *)
-val tpm_eql = store_thm(
-  "tpm_eql",
-  ``(tpm pi t = u) = (t = tpm (REVERSE pi) u)``,
-  METIS_TAC [tpm_inverse]);
 val tpm_eqr = store_thm(
   "tpm_eqr",
   ``(t = tpm pi u) = (tpm (REVERSE pi) t = u)``,
-  METIS_TAC [tpm_inverse]);
+  METIS_TAC [pmact_inverse]);
 
 val tpm_CONS = store_thm(
   "tpm_CONS",
   ``tpm ((x,y)::pi) t = tpm [(x,y)] (tpm pi t)``,
-  SRW_TAC [][GSYM tpm_APPEND]);
+  SRW_TAC [][GSYM pmact_decompose]);
 
 val tpm_ALPHA = store_thm(
   "tpm_ALPHA",
   ``v ∉ FV u ==> (LAM x u = LAM v (tpm [(v,x)] u))``,
-  SRW_TAC [boolSimps.CONJ_ss][LAM_eq_thm, tpm_flip_args]);
+  SRW_TAC [boolSimps.CONJ_ss][LAM_eq_thm, pmact_flip_args]);
 
 (* cases theorem *)
 val term_CASES = store_thm(
@@ -443,7 +423,7 @@ val tpm_COND = prove(
 val tpm_apart = store_thm(
   "tpm_apart",
   ``!t. ~(x IN FV t) /\ (y IN FV t) ==> ~(tpm [(x,y)] t = t)``,
-  metis_tac[supp_apart, tpm_is_perm, tpm_flip_args]);
+  metis_tac[supp_apart, pmact_flip_args]);
 
 val tpm_fresh = store_thm(
   "tpm_fresh",
@@ -464,18 +444,19 @@ val subst_exists =
     parameter_tm_recursion
         |> INST_TYPE [alpha |-> ``:term``, ``:ρ`` |-> ``:string # term``]
         |> SPEC_ALL
-        |> Q.INST [`A` |-> `{}`, `apm` |-> `tpm`,
-                   `ppm` |-> `pairpm lswapstr tpm`,
+        |> Q.INST [`A` |-> `{}`, `apm` |-> `^t_pmact_t`,
+                   `ppm` |-> `pair_pmact string_pmact ^t_pmact_t`,
                    `vr` |-> `\s (x,N). if s = x then N else VAR s`,
                    `ap` |-> `\r1 r2 t1 t2 p. r1 p @@ r2 p`,
                    `lm` |-> `\r v t p. LAM v (r p)`]
         |> CONV_RULE (LAND_CONV (SIMP_CONV (srw_ss()) [pairTheory.FORALL_PROD]))
         |> SIMP_RULE (srw_ss()) [support_def, FUN_EQ_THM, fnpm_def,
-                                 tpm_COND, tpm_fresh, is_perm_sing_inv,
+                                 tpm_COND, tpm_fresh, pmact_sing_inv,
                                  basic_swapTheory.swapstr_eq_left]
         |> SIMP_RULE (srw_ss()) [rewrite_pairing, pairTheory.FORALL_PROD]
         |> CONV_RULE (DEPTH_CONV (rename_vars [("p_1", "u"), ("p_2", "N")]))
-        |> prove_alpha_fcbhyp {ppm = ``pairpm lswapstr tpm``, rwts = [],
+        |> prove_alpha_fcbhyp {ppm = ``pair_pmact string_pmact ^t_pmact_t``,
+                               rwts = [],
                                alphas = [tpm_ALPHA]}
 
 val SUB_DEF = new_specification("SUB_DEF", ["SUB"], subst_exists)
@@ -523,7 +504,9 @@ val tpm_subst = store_thm(
   ``!N. tpm pi ([M/v] N) = [tpm pi M/lswapstr pi v] (tpm pi N)``,
   HO_MATCH_MP_TAC nc_INDUCTION2 THEN
   Q.EXISTS_TAC `v INSERT FV M` THEN
-  SRW_TAC [][SUB_THM, SUB_VAR]);
+  SRW_TAC [][SUB_THM, SUB_VAR] THEN
+  MATCH_MP_TAC (SUB_THM |> CONJUNCTS |> C (curry List.nth) 3 |> GSYM) THEN
+  SRW_TAC [][stringpm_raw]);
 
 val tpm_subst_out = store_thm(
   "tpm_subst_out",
@@ -574,7 +557,7 @@ val SIMPLE_ALPHA = store_thm(
   "SIMPLE_ALPHA",
   ``~(y IN FV u) ==> !x. LAM x u = LAM y ([VAR y/x] u)``,
   SRW_TAC [][GSYM fresh_tpm_subst] THEN
-  SRW_TAC [boolSimps.CONJ_ss][LAM_eq_thm, tpm_flip_args]);
+  SRW_TAC [boolSimps.CONJ_ss][LAM_eq_thm, pmact_flip_args]);
 
 
 (* ----------------------------------------------------------------------
@@ -585,7 +568,7 @@ val size_exists =
     tm_recursion
         |> INST_TYPE [alpha |-> ``:num``]
         |> SPEC_ALL
-        |> Q.INST [`A` |-> `{}`, `apm` |-> `K I`,
+        |> Q.INST [`A` |-> `{}`, `apm` |-> `discrete_pmact`,
              `vr` |-> `\s. 1`, `ap` |-> `\m n t1 t2. m + n + 1`,
              `lm` |-> `\m v t. m + 1`]
         |> SIMP_RULE (srw_ss()) []
@@ -644,24 +627,24 @@ val ISUB_LAM = store_thm(
 
 val strterm_fmap_supp = store_thm(
   "strterm_fmap_supp",
-  ``supp (fmpm lswapstr tpm) fmap =
+  ``supp (fm_pmact string_pmact ^t_pmact_t) fmap =
       FDOM fmap ∪
-      supp (setpm tpm) (FRANGE fmap)``,
+      supp (set_pmact ^t_pmact_t) (FRANGE fmap)``,
   SRW_TAC [][fmap_supp]);
 
 val FINITE_strterm_fmap_supp = store_thm(
   "FINITE_strterm_fmap_supp",
-  ``FINITE (supp (fmpm lswapstr tpm) fmap)``,
+  ``FINITE (supp (fm_pmact string_pmact ^t_pmact_t) fmap)``,
   SRW_TAC [][strterm_fmap_supp, supp_setpm] THEN SRW_TAC [][]);
 val _ = export_rewrites ["FINITE_strterm_fmap_supp"]
 
 val lem1 = prove(
-  ``∃a. ~(a ∈ supp (fmpm lswapstr tpm) fm)``,
-  Q_TAC (NEW_TAC "z") `supp (fmpm lswapstr tpm) fm` THEN
+  ``∃a. ~(a ∈ supp (fm_pmact string_pmact ^t_pmact_t) fm)``,
+  Q_TAC (NEW_TAC "z") `supp (fm_pmact string_pmact ^t_pmact_t) fm` THEN
   METIS_TAC []);
 
 val supp_FRANGE = prove(
-  ``~(x ∈ supp (setpm tpm) (FRANGE fm)) =
+  ``~(x ∈ supp (set_pmact ^t_pmact_t) (FRANGE fm)) =
    ∀y. y ∈ FDOM fm ==> ~(x ∈ FV (fm ' y))``,
   SRW_TAC [][supp_setpm, finite_mapTheory.FRANGE_DEF] THEN METIS_TAC []);
 
@@ -674,13 +657,13 @@ in
 end
 
 val supp_EMPTY = prove(
-  ``is_perm apm ==> (supp (setpm apm) {} = {})``,
+  ``(supp (set_pmact apm) {} = {})``,
   srw_tac [][EXTENSION] >> match_mp_tac notinsupp_I >>
   qexists_tac `{}` >> srw_tac [][support_def]);
 
 
 val lem2 = prove(
-  ``∀fm. FINITE (supp (setpm tpm) (FRANGE fm))``,
+  ``∀fm. FINITE (supp (set_pmact ^t_pmact_t) (FRANGE fm))``,
   srw_tac [][supp_setpm] >> srw_tac [][]);
 
 val ordering = prove(
@@ -690,7 +673,7 @@ val ordering = prove(
   metis_tac [])
 
 val notin_frange = prove(
-  ``v ∉ supp (setpm tpm) (FRANGE p) <=> ∀y. y ∈ FDOM p ==> v ∉ FV (p ' y)``,
+  ``v ∉ supp (set_pmact ^t_pmact_t) (FRANGE p) <=> ∀y. y ∈ FDOM p ==> v ∉ FV (p ' y)``,
   srw_tac [][supp_setpm, EQ_IMP_THM, finite_mapTheory.FRANGE_DEF] >>
   metis_tac []);
 
@@ -698,17 +681,17 @@ val ssub_exists =
     parameter_tm_recursion
         |> INST_TYPE [alpha |-> ``:term``, ``:ρ`` |-> ``:string |-> term``]
         |> Q.INST [`vr` |-> `\s fm. if s ∈ FDOM fm then fm ' s else VAR s`,
-                   `lm` |-> `\r v t fm. LAM v (r fm)`, `apm` |-> `tpm`,
-                   `ppm` |-> `fmpm lswapstr tpm`,
+                   `lm` |-> `\r v t fm. LAM v (r fm)`, `apm` |-> `^t_pmact_t`,
+                   `ppm` |-> `fm_pmact string_pmact ^t_pmact_t`,
                    `ap` |-> `\r1 r2 t1 t2 fm. r1 fm @@ r2 fm`,
                    `A` |-> `{}`]
         |> SIMP_RULE (srw_ss()) [tpm_COND, strterm_fmap_supp, lem2,
                                  FAPPLY_eqv_lswapstr, supp_fresh,
-                                 is_perm_sing_inv, fnpm_def,
+                                 pmact_sing_inv, fnpm_def,
                                  fmpm_FDOM, notin_frange]
         |> SIMP_RULE (srw_ss()) [Once ordering]
         |> CONV_RULE (DEPTH_CONV (rename_vars [("p", "fm")]))
-        |> prove_alpha_fcbhyp {ppm = ``fmpm lswapstr tpm``,
+        |> prove_alpha_fcbhyp {ppm = ``fm_pmact string_pmact ^t_pmact_t``,
                                rwts = [notin_frange, strterm_fmap_supp],
                                alphas = [tpm_ALPHA]}
 
@@ -727,7 +710,7 @@ val single_ssub = store_thm(
 
 val in_fmap_supp = store_thm(
   "in_fmap_supp",
-  ``x ∈ supp (fmpm lswapstr tpm) fm <=>
+  ``x ∈ supp (fm_pmact string_pmact ^t_pmact_t) fm <=>
       x ∈ FDOM fm ∨
       ∃y. y ∈ FDOM fm ∧ x ∈ FV (fm ' y)``,
   SRW_TAC [][strterm_fmap_supp, nomsetTheory.supp_setpm] THEN
@@ -735,7 +718,7 @@ val in_fmap_supp = store_thm(
 
 val not_in_fmap_supp = store_thm(
   "not_in_fmap_supp",
-  ``x ∉ supp (fmpm lswapstr tpm) fm <=>
+  ``x ∉ supp (fm_pmact string_pmact ^t_pmact_t) fm <=>
       x ∉ FDOM fm ∧ ∀y. y ∈ FDOM fm ==> x ∉ FV (fm ' y)``,
   METIS_TAC [in_fmap_supp]);
 val _ = export_rewrites ["not_in_fmap_supp"]
@@ -744,7 +727,7 @@ val ssub_14b = store_thm(
   "ssub_14b",
   ``∀t. (FV t ∩ FDOM phi = EMPTY) ==> ((phi : string |-> term) ' t = t)``,
   HO_MATCH_MP_TAC nc_INDUCTION2 THEN
-  Q.EXISTS_TAC `supp (fmpm lswapstr tpm) phi` THEN
+  Q.EXISTS_TAC `supp (fm_pmact string_pmact ^t_pmact_t) phi` THEN
   SRW_TAC [][SUB_THM, SUB_VAR, pred_setTheory.EXTENSION] THEN METIS_TAC []);
 
 val ssub_value = store_thm(
@@ -763,13 +746,12 @@ val _ = export_rewrites ["ssub_FEMPTY"]
    ---------------------------------------------------------------------- *)
 
 val lemma = prove(
-  ``is_perm apm ==>
-    ((∀x y t. apm [(x,y)] (h t) = h (tpm [(x,y)] t)) <=>
-     ∀pi t. apm pi (h t) = h (tpm pi t))``,
-  strip_tac >> simp_tac (srw_ss()) [EQ_IMP_THM] >> ONCE_REWRITE_TAC [EQ_SYM_EQ] >>
+  ``(∀x y t. pmact apm [(x,y)] (h t) = h (tpm [(x,y)] t)) <=>
+     ∀pi t. pmact apm pi (h t) = h (tpm pi t)``,
+  simp_tac (srw_ss()) [EQ_IMP_THM] >> ONCE_REWRITE_TAC [EQ_SYM_EQ] >>
   strip_tac >> Induct_on `pi` >>
-  asm_simp_tac (srw_ss()) [is_perm_nil, pairTheory.FORALL_PROD] >>
-  srw_tac [][Once tpm_CONS] >> srw_tac [][GSYM is_perm_decompose]);
+  asm_simp_tac (srw_ss()) [pmact_nil, pairTheory.FORALL_PROD] >>
+  srw_tac [][Once tpm_CONS] >> srw_tac [][GSYM pmact_decompose]);
 
 val tm_recursion_nosideset = save_thm(
   "tm_recursion_nosideset",
@@ -782,8 +764,7 @@ val term_info_string =
     \val term_info = \n\
     \   NTI {nullfv = ``LAM \"\" (VAR \"\")``,\n\
     \        pm_rewrites = [],\n\
-    \        pm_constant = ``term$tpm``,\n\
-    \        fv_constant = ``nomset$supp term$tpm``,\n\
+    \        pm_constant = ``nomset$mk_pmact term$raw_tpm``,\n\
     \        fv_rewrites = [],\n\
     \        recursion_thm = SOME tm_recursion_nosideset,\n\
     \        binders = [(``term$LAM``, 0, tpm_ALPHA)]}\n\
@@ -800,6 +781,3 @@ val _ = adjoin_to_theory
 
 
 val _ = export_theory()
-
-
-
